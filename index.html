@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WealthEngine Pro | Portfolio</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 
+    SECURITY CONFIGURATION CHECKLIST:
+    1. Google Cloud Console > APIs & Services > Credentials:
+       - Set "Application restrictions" to "Websites".
+       - Add your specific referrers and project IDs here.
+       
+    2. Firestore Security Rules (Paste these into Firebase Console):
+       service cloud.firestore {
+         match /databases/{database}/documents {
+           match /artifacts/wealth-engine-pro-v3/users/{userId}/{allPaths=**} {
+             allow read, write: if request.auth != null && request.auth.uid == userId;
+           }
+         }
+       }
+    -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
@@ -17,61 +32,112 @@
         .price-input:hover { border-color: #cbd5e1; background: #f1f5f9; }
         .progress-bg { height: 10px; background-color: #f1f5f9; border-radius: 6px; overflow: hidden; }
         .progress-fill { height: 100%; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .modal { transition: opacity 0.2s ease-in-out; }
+        .modal.hidden { opacity: 0; pointer-events: none; }
+        @keyframes pulse-light { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .live-tag { animation: pulse-light 2s infinite; }
     </style>
 </head>
 <body class="min-h-screen pb-20 text-slate-900">
 
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm hidden modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+            <div class="bg-indigo-600 text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black mx-auto mb-4">WE</div>
+            <h2 class="text-xl font-black mb-2 text-slate-900">Sync Your Portfolio</h2>
+            <p class="text-sm text-slate-500 mb-6 font-medium">Sign in to access your data across devices.</p>
+            <button id="google-sign-in-btn" class="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 py-3 rounded-xl font-black text-sm hover:bg-slate-50 transition-colors shadow-sm text-slate-700">
+                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Continue with Google
+            </button>
+            <button id="close-auth-btn" class="mt-4 text-xs text-slate-400 font-bold hover:text-slate-600">Use Offline Mode</button>
+        </div>
+    </div>
+
     <header class="bg-white border-b sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
             <h1 class="text-xl font-black flex items-center gap-2">
-                <span class="bg-indigo-600 text-white p-1 rounded">WE</span> WealthEngine
+                <span class="bg-indigo-600 text-white p-1 rounded">WE</span> <span class="hidden sm:inline">WealthEngine</span>
             </h1>
-            <div class="flex items-center gap-4" id="auth-zone">
-                <div id="auth-loading" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Loading...</div>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg">
+                    <div class="flex flex-col">
+                        <span class="text-[8px] font-black text-indigo-400 uppercase leading-none mb-0.5">USD/HKD</span>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="fx-rate-input" step="0.0001" 
+                                class="w-14 bg-transparent border-none p-0 text-xs font-black text-indigo-700 focus:ring-0 focus:outline-none" 
+                                value="7.8210" onchange="updateGlobalFX(this.value)">
+                            <span id="fx-live-indicator" class="text-[8px] font-black bg-indigo-200 text-indigo-700 px-1 rounded live-tag hidden">LIVE</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="auth-status" class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border rounded-lg text-[10px] font-bold uppercase cursor-pointer">
+                    <span id="sync-dot" class="sync-indicator bg-slate-300"></span>
+                    <span id="sync-text" class="hidden sm:inline">Connecting...</span>
+                </div>
             </div>
         </div>
     </header>
 
-    <main id="main-content" class="max-w-7xl mx-auto px-4 py-8 opacity-50 pointer-events-none transition-opacity duration-300">
-        <!-- Top Level Exposure Section -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Overview Stats -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="card p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Portfolio Value</p>
+                <h2 id="total-val-hkd" class="text-xl md:text-2xl font-black">$0.00</h2>
+                <p id="unrealized-gain" class="text-[10px] font-bold text-slate-400 mt-1">Unrealized: $0.00</p>
+            </div>
+            <div class="card p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net P/L</p>
+                <h2 id="grand-total-profit" class="text-xl md:text-2xl font-black text-emerald-600">$0.00</h2>
+            </div>
+            <div class="card p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Passive Income</p>
+                <h2 id="total-div-hkd" class="text-xl md:text-2xl font-black text-blue-600">$0.00</h2>
+            </div>
+            <div class="card p-5">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Fees</p>
+                <h2 id="total-fees-display" class="text-xl md:text-2xl font-black text-rose-500">$0.00</h2>
+            </div>
+        </div>
+
+        <!-- Allocation Bars -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="card p-6 border-l-4 border-l-indigo-600">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Market Exposure (HKD Basis)</h3>
-                </div>
-                <div class="space-y-5">
+            <div class="card p-6">
+                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Market Exposure</h3>
+                <div class="space-y-4">
                     <div>
-                        <div class="flex justify-between text-[11px] font-black mb-1.5 uppercase tracking-wide">
-                            <span class="text-slate-600">Hong Kong Market</span>
-                            <span id="exp-hk-pct" class="text-indigo-600">0%</span>
+                        <div class="flex justify-between text-[10px] font-black mb-1 uppercase text-slate-500">
+                            <span>HKD Assets</span>
+                            <span id="exp-hk-pct">0%</span>
                         </div>
                         <div class="progress-bg"><div id="exp-hk-bar" class="progress-fill bg-indigo-500" style="width: 0%"></div></div>
                     </div>
                     <div>
-                        <div class="flex justify-between text-[11px] font-black mb-1.5 uppercase tracking-wide">
-                            <span class="text-slate-600">US Market</span>
-                            <span id="exp-us-pct" class="text-blue-600">0%</span>
+                        <div class="flex justify-between text-[10px] font-black mb-1 uppercase text-slate-500">
+                            <span>USD Assets</span>
+                            <span id="exp-us-pct">0%</span>
                         </div>
-                        <div class="progress-bg"><div id="exp-us-bar" class="progress-fill bg-blue-500" style="width: 0%"></div></div>
+                        <div class="progress-bg"><div id="exp-us-bar" class="progress-fill bg-blue-400" style="width: 0%"></div></div>
                     </div>
                 </div>
             </div>
-            <div class="card p-6 border-l-4 border-l-amber-500">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Asset Allocation</h3>
-                </div>
-                <div class="space-y-5">
+            <div class="card p-6">
+                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Asset Type</h3>
+                <div class="space-y-4">
                     <div>
-                        <div class="flex justify-between text-[11px] font-black mb-1.5 uppercase tracking-wide">
-                            <span class="text-slate-600">Equity / ETF</span>
-                            <span id="exp-stock-pct" class="text-indigo-600">0%</span>
+                        <div class="flex justify-between text-[10px] font-black mb-1 uppercase text-slate-500">
+                            <span>Stock / ETF</span>
+                            <span id="exp-stock-pct">0%</span>
                         </div>
                         <div class="progress-bg"><div id="exp-stock-bar" class="progress-fill bg-indigo-600" style="width: 0%"></div></div>
                     </div>
                     <div>
-                        <div class="flex justify-between text-[11px] font-black mb-1.5 uppercase tracking-wide">
-                            <span class="text-slate-600">Bond / Fixed Income</span>
-                            <span id="exp-bond-pct" class="text-amber-500">0%</span>
+                        <div class="flex justify-between text-[10px] font-black mb-1 uppercase text-slate-500">
+                            <span>Bonds / FI</span>
+                            <span id="exp-bond-pct">0%</span>
                         </div>
                         <div class="progress-bg"><div id="exp-bond-bar" class="progress-fill bg-amber-500" style="width: 0%"></div></div>
                     </div>
@@ -79,159 +145,149 @@
             </div>
         </div>
 
-        <!-- Summary Dashboard Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div class="card p-5">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Portfolio Value</p>
-                <h2 id="total-val-hkd" class="text-2xl font-black">$0.00</h2>
-                <div id="unrealized-gain" class="mt-1 text-[10px] font-bold text-slate-400 uppercase">Unrealized: $0.00</div>
-            </div>
-            <div class="card p-5">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Wealth Change</p>
-                <h2 id="grand-total-profit" class="text-2xl font-black text-emerald-600">$0.00</h2>
-                <div id="div-yoc" class="text-[10px] text-slate-400 font-bold uppercase">YOC: 0%</div>
-            </div>
-            <div class="card p-5">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Passive Income</p>
-                <h2 id="total-div-hkd" class="text-2xl font-black text-blue-600">$0.00</h2>
-                <div class="text-[10px] text-slate-400 font-bold uppercase">Total Dividends + Coupons</div>
-            </div>
-            <div class="card p-5">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Fees</p>
-                <h2 id="total-fees-display" class="text-2xl font-black text-rose-500">$0.00</h2>
-                <div class="text-[10px] text-slate-400 font-bold uppercase">Trading & Management</div>
-            </div>
-        </div>
-
-        <!-- Forms Row -->
+        <!-- Entry Forms -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+            <!-- Trade Form (RESTORED TO SPACIOUS LAYOUT) -->
             <div class="lg:col-span-6 card p-6">
-                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Trade Execution</h3>
-                <form id="tx-form" class="grid grid-cols-2 gap-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Trade Execution</h3>
+                </div>
+                <form id="tx-form" class="space-y-4">
                     <input type="hidden" id="edit-id">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Date</label>
-                        <input type="date" id="trade-date" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Date</label>
+                            <input type="date" id="trade-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Asset</label>
+                            <select id="assetType" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                                <option value="STOCK">Stock</option>
+                                <option value="BOND">Bond</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Symbol</label>
+                            <input type="text" id="symbol" placeholder="e.g. 0700.HK" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold uppercase" required>
+                        </div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Asset Class</label>
-                        <select id="assetType" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold">
-                            <option value="STOCK">Stock / ETF</option>
-                            <option value="BOND">Bond</option>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Action</label>
+                            <select id="action" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                                <option value="BUY">BUY</option>
+                                <option value="SELL">SELL</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Quantity</label>
+                            <input type="number" id="shares" placeholder="0" step="any" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Price</label>
+                            <input type="number" id="price" placeholder="0.00" step="any" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Currency</label>
+                            <select id="currency" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                                <option value="HKD">HKD</option>
+                                <option value="USD">USD</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4 items-end">
+                        <div class="flex-1 space-y-1">
+                            <label class="text-[10px] font-black text-slate-400 uppercase">Trading Fee</label>
+                            <input type="number" id="fee" placeholder="0.00" step="any" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                        </div>
+                        <button type="submit" id="tx-submit-btn" class="flex-1 bg-indigo-600 text-white font-black py-2 rounded-lg uppercase text-xs hover:bg-indigo-700 h-[38px]">Save Transaction</button>
+                        <button type="button" id="tx-cancel-btn" class="hidden px-4 bg-slate-100 text-slate-500 font-black py-2 rounded-lg uppercase text-xs h-[38px]">Cancel</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Income Form -->
+            <div class="lg:col-span-3 card p-6">
+                <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">Log Income</h3>
+                <form id="div-form" class="space-y-4">
+                    <input type="hidden" id="div-edit-id">
+                    <div class="grid grid-cols-2 gap-2">
+                        <select id="div-type" class="p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                            <option value="DIVIDEND">Dividend</option>
+                            <option value="COUPON">Coupon</option>
                         </select>
+                        <input type="text" id="div-symbol" placeholder="Symbol" class="p-2 bg-slate-50 border rounded-lg text-xs font-bold uppercase" required>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Ticker / Symbol</label>
-                        <input type="text" id="symbol" placeholder="AAPL / 2800" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold uppercase" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Action</label>
-                        <select id="action" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold">
-                            <option value="BUY">BUY</option>
-                            <option value="SELL">SELL</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Quantity</label>
-                        <input type="number" id="shares" placeholder="0.00" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Execution Price</label>
-                        <input type="number" id="price" placeholder="0.00" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Currency</label>
-                        <select id="currency" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold">
+                    <div class="grid grid-cols-3 gap-2">
+                        <input type="number" id="div-amount" placeholder="Amount" step="any" class="col-span-2 p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                        <select id="div-currency" class="p-2 bg-slate-50 border rounded-lg text-xs font-bold">
                             <option value="HKD">HKD</option>
                             <option value="USD">USD</option>
                         </select>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Trading Fee</label>
-                        <input type="number" id="fee" placeholder="0.00" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold">
+                    <input type="date" id="div-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                    <div class="flex gap-2">
+                        <button type="submit" id="div-submit-btn" class="flex-1 bg-emerald-600 text-white font-black py-2 rounded-lg uppercase text-xs hover:bg-emerald-700">Log Income</button>
+                        <button type="button" id="cancel-div-edit" class="hidden bg-slate-100 text-slate-500 font-black px-3 rounded-lg uppercase text-xs">X</button>
                     </div>
-                    <button type="submit" id="tx-submit-btn" class="col-span-2 bg-indigo-600 text-white font-black py-3.5 rounded-xl uppercase text-xs tracking-widest hover:bg-indigo-700">Save Transaction</button>
-                    <button type="button" id="tx-cancel-btn" class="hidden col-span-2 bg-slate-100 text-slate-500 font-black py-2 rounded-xl uppercase text-xs">Cancel Edit</button>
-                </form>
-            </div>
-            
-            <div class="lg:col-span-3 card p-6">
-                <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">Log Income</h3>
-                <form id="div-form" class="space-y-4">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Income Type</label>
-                        <select id="div-type" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold">
-                            <option value="DIVIDEND">Dividend</option>
-                            <option value="COUPON">Bond Coupon</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Symbol</label>
-                        <input type="text" id="div-symbol" placeholder="SYMBOL" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold uppercase" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Net Amount</label>
-                        <input type="number" id="div-amount" placeholder="0.00" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Date Received</label>
-                        <input type="date" id="div-date" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
-                    </div>
-                    <button type="submit" class="w-full bg-emerald-600 text-white font-black py-3.5 rounded-xl uppercase text-xs tracking-widest hover:bg-emerald-700">Add Income</button>
                 </form>
             </div>
 
+            <!-- Fee Form -->
             <div class="lg:col-span-3 card p-6">
-                <h3 class="text-xs font-black uppercase tracking-widest text-rose-500 mb-4">Other Fees</h3>
+                <h3 class="text-xs font-black uppercase tracking-widest text-rose-500 mb-4">Log Fees</h3>
                 <form id="fee-form" class="space-y-4">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Description</label>
-                        <input type="text" id="fee-desc" placeholder="Mgt Fee / Custody" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
+                    <input type="hidden" id="fee-edit-id">
+                    <input type="text" id="fee-desc" placeholder="Fee Description" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                    <div class="grid grid-cols-3 gap-2">
+                        <input type="number" id="fee-amount" placeholder="Amount" step="any" class="col-span-2 p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                        <select id="fee-currency" class="p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                            <option value="HKD">HKD</option>
+                            <option value="USD">USD</option>
+                        </select>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Amount (HKD)</label>
-                        <input type="number" id="fee-amount" placeholder="0.00" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
+                    <input type="date" id="fee-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required>
+                    <div class="flex gap-2">
+                        <button type="submit" id="fee-submit-btn" class="flex-1 bg-rose-500 text-white font-black py-2 rounded-lg uppercase text-xs hover:bg-rose-600">Log Fee</button>
+                        <button type="button" id="cancel-fee-edit" class="hidden bg-slate-100 text-slate-500 font-black px-3 rounded-lg uppercase text-xs">X</button>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Date</label>
-                        <input type="date" id="fee-date" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-bold" required>
-                    </div>
-                    <button type="submit" class="w-full bg-rose-500 text-white font-black py-3.5 rounded-xl uppercase text-xs tracking-widest hover:bg-rose-600">Log Fee</button>
                 </form>
             </div>
         </div>
 
-        <!-- Portfolio Table Header -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 mb-6 pb-2">
-            <div class="flex gap-8">
-                <button onclick="setView('portfolio')" id="tab-portfolio" class="pb-3 text-xs font-black uppercase tracking-widest tab-active">Current Holdings</button>
-                <button onclick="setView('history')" id="tab-history" class="pb-3 text-xs font-black uppercase tracking-widest text-slate-400">Transaction Ledger</button>
+        <!-- Portfolio Table & History -->
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex gap-4 border-b border-slate-200">
+                <button onclick="setView('portfolio')" id="tab-portfolio" class="pb-3 text-xs font-black uppercase tracking-widest tab-active">Portfolio</button>
+                <button onclick="setView('history')" id="tab-history" class="pb-3 text-xs font-black uppercase tracking-widest text-slate-400">History</button>
             </div>
             <div id="portfolio-filters" class="flex gap-2">
-                <select id="filter-market" onchange="render()" class="text-[10px] font-bold bg-white border rounded-lg px-2 py-1.5 uppercase">
+                <select id="filter-market" onchange="render()" class="p-1.5 bg-white border rounded text-[10px] font-black uppercase">
                     <option value="ALL">All Markets</option>
-                    <option value="HKD">HKD Only</option>
-                    <option value="USD">USD Only</option>
+                    <option value="HKD">HK (HKD)</option>
+                    <option value="USD">US (USD)</option>
                 </select>
-                <select id="filter-type" onchange="render()" class="text-[10px] font-bold bg-white border rounded-lg px-2 py-1.5 uppercase">
-                    <option value="ALL">All Types</option>
-                    <option value="STOCK">Stocks/ETFs</option>
-                    <option value="BOND">Bonds</option>
+                <select id="filter-type" onchange="render()" class="p-1.5 bg-white border rounded text-[10px] font-black uppercase">
+                    <option value="ALL">All Assets</option>
+                    <option value="STOCK">Stock</option>
+                    <option value="BOND">Bond</option>
                 </select>
             </div>
         </div>
 
         <div class="card overflow-hidden">
             <div id="portfolio-view" class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+                <table class="w-full text-left">
                     <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-black">
                         <tr>
                             <th class="px-6 py-4">Security</th>
                             <th class="px-6 py-4 text-right">Units</th>
                             <th class="px-6 py-4 text-right">Avg Cost</th>
-                            <th class="px-6 py-4 text-right">Market Price</th>
-                            <th class="px-6 py-4 text-right">Market Value</th>
-                            <th class="px-6 py-4 text-right">Unrealized P/L</th>
+                            <th class="px-6 py-4 text-right">Mkt Price</th>
+                            <th class="px-6 py-4 text-right">Value (HKD)</th>
+                            <th class="px-6 py-4 text-right">P/L</th>
                         </tr>
                     </thead>
                     <tbody id="portfolio-body" class="divide-y divide-slate-100 font-medium text-sm"></tbody>
@@ -243,8 +299,8 @@
                         <tr>
                             <th class="px-6 py-4">Date</th>
                             <th class="px-6 py-4">Activity</th>
-                            <th class="px-6 py-4">Symbol</th>
-                            <th class="px-6 py-4 text-right">Detail</th>
+                            <th class="px-6 py-4">Detail</th>
+                            <th class="px-6 py-4 text-right">Value</th>
                             <th class="px-6 py-4 text-center">Actions</th>
                         </tr>
                     </thead>
@@ -254,28 +310,12 @@
         </div>
     </main>
 
-    <!-- Sign In Overlay -->
-    <div id="login-overlay" class="fixed inset-0 bg-slate-50/80 backdrop-blur-sm z-40 flex flex-col items-center justify-center hidden">
-        <div class="card p-8 text-center max-w-sm mx-4">
-            <div class="bg-indigo-600 text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black mx-auto mb-4">WE</div>
-            <h2 class="text-xl font-black mb-2">Welcome Back</h2>
-            <p class="text-sm text-slate-500 mb-6 font-medium">Please sign in with Google to access your portfolio and sync data across devices.</p>
-            <button id="google-sign-in-btn" class="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 py-3 rounded-xl font-black text-sm hover:bg-slate-50 transition-colors shadow-sm">
-                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Continue with Google
-            </button>
-        </div>
-    </div>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        // CONFIGURATION: PASTE YOUR FIREBASE KEYS HERE
-        // ==========================================
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAuWAWMrolg7Xiep87DdkQ0skRgizo6S74",
   authDomain: "wealth-tracker-32a39.firebaseapp.com",
@@ -285,14 +325,111 @@ const firebaseConfig = {
   appId: "1:1076837016102:web:6b4cf9e39216fa0ffdfce7",
   measurementId: "G-V7DFKSHZ0D"
 };
-        const appId = "my-portfolio-v2";
-        // ==========================================
+        const appId = "wealth-engine-pro-v3";
 
         let transactions = [], dividends = [], adminFees = [], marketPrices = {};
-        const usdToHkd = 7.8210;
+        let usdToHkd = 7.8210; 
         let db, auth;
 
-        const fmt = (val, curr = 'HKD') => new Intl.NumberFormat('en-HK', { style: 'currency', currency: curr }).format(val);
+        const fmt = (val, ccy = 'HKD') => {
+            const sym = ccy === 'USD' ? '$' : 'HK$';
+            return sym + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        async function fetchLiveFX() {
+            try {
+                const res = await fetch('https://open.er-api.com/v6/latest/USD');
+                const data = await res.json();
+                const input = document.getElementById('fx-rate-input');
+                if (data?.rates?.HKD && !input.dataset.userOverridden) {
+                    usdToHkd = data.rates.HKD;
+                    input.value = usdToHkd.toFixed(4);
+                    document.getElementById('fx-live-indicator').classList.remove('hidden');
+                    render();
+                }
+            } catch (e) { console.warn("FX Fetch Failed"); }
+        }
+
+        window.updateGlobalFX = async (val) => {
+            const v = parseFloat(val);
+            if (isNaN(v)) return;
+            usdToHkd = v;
+            document.getElementById('fx-rate-input').dataset.userOverridden = "true";
+            document.getElementById('fx-live-indicator').classList.add('hidden');
+            if (auth?.currentUser) await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'settings', 'global'), { usdToHkd: v, isManual: true });
+            else localStorage.setItem('local_fx', v);
+            render();
+        };
+
+        window.updatePrice = async (symbol, price) => {
+            const p = parseFloat(price);
+            if (isNaN(p)) return;
+            if (auth?.currentUser) await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'prices', symbol), { price: p });
+            else { marketPrices[symbol] = p; localStorage.setItem('local_prices', JSON.stringify(marketPrices)); render(); }
+        };
+
+        window.deleteItem = async (type, id) => {
+            if (!confirm(`Delete this entry?`)) return;
+            if (auth?.currentUser) {
+                const colMap = { 'TRADE': 'transactions', 'INCOME': 'dividends', 'FEE': 'fees' };
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, colMap[type], id));
+            } else {
+                if (type === 'TRADE') transactions = transactions.filter(t => t.id !== id);
+                if (type === 'INCOME') dividends = dividends.filter(d => d.id !== id);
+                if (type === 'FEE') adminFees = adminFees.filter(f => f.id !== id);
+                saveLocal(); render();
+            }
+        };
+
+        const saveLocal = () => {
+            localStorage.setItem('local_tx', JSON.stringify(transactions));
+            localStorage.setItem('local_div', JSON.stringify(dividends));
+            localStorage.setItem('local_fee', JSON.stringify(adminFees));
+        };
+
+        window.editTrade = (id) => {
+            const t = transactions.find(tx => tx.id === id);
+            if (!t) return;
+            document.getElementById('edit-id').value = t.id;
+            document.getElementById('trade-date').value = t.date;
+            document.getElementById('assetType').value = t.assetType;
+            document.getElementById('symbol').value = t.symbol;
+            document.getElementById('action').value = t.action;
+            document.getElementById('shares').value = t.shares;
+            document.getElementById('price').value = t.price;
+            document.getElementById('currency').value = t.currency;
+            document.getElementById('fee').value = t.fee;
+            document.getElementById('tx-submit-btn').innerText = "Update";
+            document.getElementById('tx-cancel-btn').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.editIncome = (id) => {
+            const d = dividends.find(div => div.id == id);
+            if (!d) return;
+            document.getElementById('div-edit-id').value = d.id;
+            document.getElementById('div-date').value = d.date;
+            document.getElementById('div-type').value = d.type;
+            document.getElementById('div-symbol').value = d.symbol;
+            document.getElementById('div-amount').value = d.amount;
+            document.getElementById('div-currency').value = d.currency || 'HKD';
+            document.getElementById('div-submit-btn').innerText = "Update";
+            document.getElementById('cancel-div-edit').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.editFee = (id) => {
+            const f = adminFees.find(fee => fee.id == id);
+            if (!f) return;
+            document.getElementById('fee-edit-id').value = f.id;
+            document.getElementById('fee-date').value = f.date;
+            document.getElementById('fee-desc').value = f.description;
+            document.getElementById('fee-amount').value = f.amount;
+            document.getElementById('fee-currency').value = f.currency || 'HKD';
+            document.getElementById('fee-submit-btn').innerText = "Update";
+            document.getElementById('cancel-fee-edit').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
 
         window.setView = (v) => {
             document.getElementById('portfolio-view').classList.toggle('hidden', v !== 'portfolio');
@@ -302,27 +439,16 @@ const firebaseConfig = {
             document.getElementById('tab-history').classList.toggle('tab-active', v === 'history');
         };
 
-        window.updatePrice = async (symbol, price) => {
-            const p = parseFloat(price);
-            if (isNaN(p) || !auth.currentUser) return;
-            await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'prices', symbol), { price: p });
-        };
-
-        window.deleteItem = async (type, id) => {
-            if (!confirm(`Delete this entry?`) || !auth.currentUser) return;
-            const colMap = { 'TRADE': 'transactions', 'INCOME': 'dividends', 'FEE': 'fees' };
-            await deleteDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, colMap[type], id));
-        };
-
         function render() {
             const marketFilter = document.getElementById('filter-market').value;
             const typeFilter = document.getElementById('filter-type').value;
             const holdings = {};
             let tradingFeesHKD = 0, incomeTotalHKD = 0, totalRealizedHKD = 0;
-            let totalAdminFeesHKD = adminFees.reduce((acc, f) => acc + f.amount, 0);
+            let totalAdminFeesHKD = adminFees.reduce((acc, f) => acc + (f.currency === 'USD' ? f.amount * usdToHkd : f.amount), 0);
 
             transactions.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(t => {
-                tradingFeesHKD += (t.currency === 'USD' ? t.fee * usdToHkd : t.fee);
+                const feeHKD = (t.currency === 'USD' ? t.fee * usdToHkd : t.fee);
+                tradingFeesHKD += feeHKD;
                 if (!holdings[t.symbol]) holdings[t.symbol] = { symbol: t.symbol, type: t.assetType, currency: t.currency, shares: 0, cost: 0 };
                 const factor = (t.assetType === 'BOND') ? 0.01 : 1.0;
                 if (t.action === 'BUY') {
@@ -337,161 +463,242 @@ const firebaseConfig = {
             });
 
             dividends.forEach(d => {
-                const tx = transactions.find(t => t.symbol === d.symbol);
-                incomeTotalHKD += (tx?.currency === 'USD' ? d.amount * usdToHkd : d.amount);
+                incomeTotalHKD += (d.currency === 'USD' ? d.amount * usdToHkd : d.amount);
             });
 
             const pBody = document.getElementById('portfolio-body');
             if (pBody) {
                 pBody.innerHTML = '';
-                let totalMarketValHKD = 0, totalCostBasisHKD = 0;
-                let hkValue = 0, usValue = 0, stockValue = 0, bondValue = 0;
+                let totalMktHKD = 0, totalCostHKD = 0, hkVal = 0, usVal = 0, stkVal = 0, bndVal = 0;
 
                 Object.values(holdings).filter(h => h.shares > 0.0001).forEach(h => {
                     const factor = (h.type === 'BOND' ? 0.01 : 1);
-                    const curPrice = marketPrices[h.symbol] || (h.cost / h.shares / factor);
-                    const marketValHKD = h.currency === 'USD' ? (h.shares * curPrice * factor * usdToHkd) : (h.shares * curPrice * factor);
+                    const curPrice = marketPrices[h.symbol] !== undefined ? marketPrices[h.symbol] : (h.cost / h.shares / factor);
+                    
+                    const marketVal = h.shares * curPrice * factor;
+                    const marketValHKD = h.currency === 'USD' ? marketVal * usdToHkd : marketVal;
                     const costHKD = h.currency === 'USD' ? h.cost * usdToHkd : h.cost;
                     
-                    totalMarketValHKD += marketValHKD;
-                    totalCostBasisHKD += costHKD;
-                    if (h.currency === 'HKD') hkValue += marketValHKD; else usValue += marketValHKD;
-                    if (h.type === 'STOCK') stockValue += marketValHKD; else bondValue += marketValHKD;
+                    totalMktHKD += marketValHKD;
+                    totalCostHKD += costHKD;
+
+                    if (h.currency === 'HKD') hkVal += marketValHKD; else usVal += marketValHKD;
+                    if (h.type === 'STOCK') stkVal += marketValHKD; else bndVal += marketValHKD;
 
                     if (marketFilter !== 'ALL' && h.currency !== marketFilter) return;
                     if (typeFilter !== 'ALL' && h.type !== typeFilter) return;
 
                     pBody.innerHTML += `<tr class="hover:bg-slate-50">
-                        <td class="px-6 py-4 flex items-center gap-2"><span class="currency-pill ${h.currency==='USD'?'bg-blue-100 text-blue-700':'bg-rose-100 text-rose-700'}">${h.currency}</span><span class="font-black">${h.symbol}</span></td>
+                        <td class="px-6 py-4 flex items-center gap-2">
+                            <span class="currency-pill ${h.currency==='USD'?'bg-blue-100 text-blue-700':'bg-rose-100 text-rose-700'}">${h.currency}</span>
+                            <span class="font-black">${h.symbol}</span>
+                        </td>
                         <td class="px-6 py-4 text-right font-black">${h.shares.toLocaleString()}</td>
-                        <td class="px-6 py-4 text-right text-slate-400 text-[10px] font-bold">${fmt(h.cost/h.shares, h.currency)}</td>
+                        <td class="px-6 py-4 text-right text-slate-400 text-[10px] font-bold">${fmt(h.cost/h.shares/factor, h.currency)}</td>
                         <td class="px-6 py-4 text-right"><input type="number" step="any" value="${curPrice.toFixed(3)}" onchange="updatePrice('${h.symbol}', this.value)" class="price-input font-black text-indigo-600"></td>
                         <td class="px-6 py-4 text-right font-black">${fmt(marketValHKD)}</td>
                         <td class="px-6 py-4 text-right font-black ${marketValHKD >= costHKD ? 'text-emerald-500':'text-rose-500'}">${fmt(marketValHKD - costHKD)}</td>
                     </tr>`;
                 });
 
-                document.getElementById('total-val-hkd').innerText = fmt(totalMarketValHKD);
-                document.getElementById('unrealized-gain').innerText = `Unrealized: ${fmt(totalMarketValHKD - totalCostBasisHKD)}`;
+                document.getElementById('total-val-hkd').innerText = fmt(totalMktHKD);
+                document.getElementById('unrealized-gain').innerText = `Unrealized: ${fmt(totalMktHKD - totalCostHKD)}`;
                 document.getElementById('total-div-hkd').innerText = fmt(incomeTotalHKD);
                 document.getElementById('total-fees-display').innerText = fmt(tradingFeesHKD + totalAdminFeesHKD);
-                document.getElementById('grand-total-profit').innerText = fmt((totalMarketValHKD - totalCostBasisHKD) + totalRealizedHKD + incomeTotalHKD - totalAdminFeesHKD);
+                document.getElementById('grand-total-profit').innerText = fmt((totalMktHKD - totalCostHKD) + totalRealizedHKD + incomeTotalHKD - totalAdminFeesHKD);
 
                 const safePct = (v, t) => t > 0 ? (v/t*100).toFixed(1) : 0;
-                document.getElementById('exp-hk-pct').innerText = safePct(hkValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-hk-bar').style.width = safePct(hkValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-us-pct').innerText = safePct(usValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-us-bar').style.width = safePct(usValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-stock-pct').innerText = safePct(stockValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-stock-bar').style.width = safePct(stockValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-bond-pct').innerText = safePct(bondValue, totalMarketValHKD) + '%';
-                document.getElementById('exp-bond-bar').style.width = safePct(bondValue, totalMarketValHKD) + '%';
+                document.getElementById('exp-hk-pct').innerText = safePct(hkVal, totalMktHKD) + '%';
+                document.getElementById('exp-hk-bar').style.width = safePct(hkVal, totalMktHKD) + '%';
+                document.getElementById('exp-us-pct').innerText = safePct(usVal, totalMktHKD) + '%';
+                document.getElementById('exp-us-bar').style.width = safePct(usVal, totalMktHKD) + '%';
+                document.getElementById('exp-stock-pct').innerText = safePct(stkVal, totalMktHKD) + '%';
+                document.getElementById('exp-stock-bar').style.width = safePct(stkVal, totalMktHKD) + '%';
+                document.getElementById('exp-bond-pct').innerText = safePct(bndVal, totalMktHKD) + '%';
+                document.getElementById('exp-bond-bar').style.width = safePct(bndVal, totalMktHKD) + '%';
 
                 const hBody = document.getElementById('history-body');
                 if (hBody) {
                     hBody.innerHTML = '';
-                    [...transactions.map(t=>({...t, id: t.id, itype:'TRADE'})), ...dividends.map(d=>({...d, id: d.id, itype:'INCOME'})), ...adminFees.map(f=>({...f, id: f.id, itype:'FEE'}))]
+                    [...transactions.map(t=>({...t, itype:'TRADE'})), ...dividends.map(d=>({...d, itype:'INCOME'})), ...adminFees.map(f=>({...f, itype:'FEE'}))]
                         .sort((a,b) => new Date(b.date) - new Date(a.date))
                         .forEach(item => {
                             const label = item.itype === 'TRADE' ? item.action : (item.itype === 'INCOME' ? item.type : 'FEE');
+                            let detail = '';
+                            if(item.itype==='TRADE') detail = `${item.symbol}: ${item.shares} @ ${item.price}`;
+                            else if(item.itype==='INCOME') detail = `${item.symbol}: Income`;
+                            else detail = item.description;
+
+                            let valDisplay = '';
+                            if(item.itype==='TRADE') valDisplay = fmt(item.shares * item.price * (item.assetType==='BOND'?0.01:1), item.currency);
+                            else if(item.itype==='INCOME') valDisplay = fmt(item.amount, item.currency);
+                            else valDisplay = fmt(item.amount, item.currency);
+
+                            let editFn = '';
+                            if(item.itype==='TRADE') editFn = `editTrade('${item.id}')`;
+                            else if(item.itype==='INCOME') editFn = `editIncome('${item.id}')`;
+                            else editFn = `editFee('${item.id}')`;
+
                             hBody.innerHTML += `<tr class="hover:bg-slate-50">
                                 <td class="px-6 py-4 text-slate-400 font-bold">${item.date}</td>
-                                <td class="px-6 py-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${item.itype==='TRADE'? (item.action==='BUY'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700') : 'bg-emerald-50 text-emerald-700'}">${label}</span></td>
-                                <td class="px-6 py-4 font-black">${item.symbol || item.description}</td>
-                                <td class="px-6 py-4 text-right font-bold text-slate-600">${item.itype==='TRADE'? `${item.shares} @ ${item.price}` : fmt(item.amount)}</td>
-                                <td class="px-6 py-4 text-center"><button onclick="deleteItem('${item.itype}', '${item.id}')" class="text-rose-400 font-black uppercase text-[10px]">Delete</button></td>
+                                <td class="px-6 py-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${item.itype==='TRADE'? (item.action==='BUY'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700') : (item.itype==='INCOME'?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700')}">${label}</span></td>
+                                <td class="px-6 py-4 font-black">${detail}</td>
+                                <td class="px-6 py-4 text-right font-bold text-slate-600">${valDisplay}</td>
+                                <td class="px-6 py-4 text-center space-x-3">
+                                    <button onclick="${editFn}" class="text-indigo-500 font-black uppercase text-[10px]">Edit</button>
+                                    <button onclick="deleteItem('${item.itype}', '${item.id}')" class="text-rose-400 font-black uppercase text-[10px]">Delete</button>
+                                </td>
                             </tr>`;
                         });
                 }
             }
         }
 
+        document.getElementById('tx-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-id').value || Date.now().toString();
+            const data = {
+                id,
+                date: document.getElementById('trade-date').value,
+                assetType: document.getElementById('assetType').value,
+                symbol: document.getElementById('symbol').value.toUpperCase(),
+                action: document.getElementById('action').value,
+                shares: parseFloat(document.getElementById('shares').value),
+                price: parseFloat(document.getElementById('price').value),
+                currency: document.getElementById('currency').value,
+                fee: parseFloat(document.getElementById('fee').value || 0)
+            };
+            if (auth?.currentUser) await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'transactions', id), data);
+            else { 
+                const idx = transactions.findIndex(t => t.id === id);
+                if (idx > -1) transactions[idx] = data; else transactions.push(data);
+                saveLocal(); render(); 
+            }
+            e.target.reset(); document.getElementById('edit-id').value = ''; 
+            const cancelBtn = document.getElementById('tx-cancel-btn');
+            if(cancelBtn) cancelBtn.classList.add('hidden');
+            document.getElementById('tx-submit-btn').innerText = "Save Transaction";
+            document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+        };
+
+        const txCancel = document.getElementById('tx-cancel-btn');
+        if(txCancel) txCancel.onclick = () => {
+            document.getElementById('tx-form').reset(); document.getElementById('edit-id').value = '';
+            document.getElementById('tx-submit-btn').innerText = "Save Transaction";
+            txCancel.classList.add('hidden');
+        };
+
+        document.getElementById('div-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('div-edit-id').value || Date.now().toString();
+            const data = {
+                id,
+                type: document.getElementById('div-type').value,
+                symbol: document.getElementById('div-symbol').value.toUpperCase(),
+                amount: parseFloat(document.getElementById('div-amount').value),
+                currency: document.getElementById('div-currency').value,
+                date: document.getElementById('div-date').value
+            };
+            if (auth?.currentUser) await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'dividends', id), data);
+            else { 
+                const idx = dividends.findIndex(d => d.id === id);
+                if (idx > -1) dividends[idx] = data; else dividends.push(data);
+                saveLocal(); render(); 
+            }
+            e.target.reset(); document.getElementById('div-edit-id').value = ''; 
+            const cancelBtn = document.getElementById('cancel-div-edit');
+            if(cancelBtn) cancelBtn.classList.add('hidden');
+            document.getElementById('div-submit-btn').innerText = "Log Income";
+            document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+        };
+
+        const divCancel = document.getElementById('cancel-div-edit');
+        if(divCancel) divCancel.onclick = () => {
+            document.getElementById('div-form').reset(); document.getElementById('div-edit-id').value = '';
+            document.getElementById('div-submit-btn').innerText = "Log Income";
+            divCancel.classList.add('hidden');
+        };
+
+        document.getElementById('fee-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('fee-edit-id').value || Date.now().toString();
+            const data = {
+                id,
+                description: document.getElementById('fee-desc').value,
+                amount: parseFloat(document.getElementById('fee-amount').value),
+                currency: document.getElementById('fee-currency').value,
+                date: document.getElementById('fee-date').value
+            };
+            if (auth?.currentUser) await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'fees', id), data);
+            else { 
+                const idx = adminFees.findIndex(f => f.id === id);
+                if (idx > -1) adminFees[idx] = data; else adminFees.push(data);
+                saveLocal(); render(); 
+            }
+            e.target.reset(); document.getElementById('fee-edit-id').value = ''; 
+            const cancelBtn = document.getElementById('cancel-fee-edit');
+            if(cancelBtn) cancelBtn.classList.add('hidden');
+            document.getElementById('fee-submit-btn').innerText = "Log Fee";
+            document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+        };
+
+        const feeCancel = document.getElementById('cancel-fee-edit');
+        if(feeCancel) feeCancel.onclick = () => {
+            document.getElementById('fee-form').reset(); document.getElementById('fee-edit-id').value = '';
+            document.getElementById('fee-submit-btn').innerText = "Log Fee";
+            feeCancel.classList.add('hidden');
+        };
+
         const boot = async () => {
+            fetchLiveFX();
             if (!firebaseConfig.apiKey) {
-                document.getElementById('auth-zone').innerHTML = `<div class="bg-rose-100 text-rose-700 px-3 py-1 rounded text-[10px] font-bold">API KEYS MISSING</div>`;
+                transactions = JSON.parse(localStorage.getItem('local_tx') || '[]');
+                dividends = JSON.parse(localStorage.getItem('local_div') || '[]');
+                adminFees = JSON.parse(localStorage.getItem('local_fee') || '[]');
+                marketPrices = JSON.parse(localStorage.getItem('local_prices') || '{}');
+                const localFX = localStorage.getItem('local_fx');
+                if (localFX) { usdToHkd = parseFloat(localFX); document.getElementById('fx-rate-input').value = usdToHkd.toFixed(4); }
+                render();
                 return;
             }
-            try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                const provider = new GoogleAuthProvider();
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            const provider = new GoogleAuthProvider();
 
-                document.getElementById('tx-form').onsubmit = async (e) => {
-                    e.preventDefault();
-                    if (!auth.currentUser) return;
-                    const data = {
-                        date: document.getElementById('trade-date').value,
-                        assetType: document.getElementById('assetType').value,
-                        symbol: document.getElementById('symbol').value.toUpperCase(),
-                        action: document.getElementById('action').value,
-                        shares: parseFloat(document.getElementById('shares').value),
-                        price: parseFloat(document.getElementById('price').value),
-                        currency: document.getElementById('currency').value,
-                        fee: parseFloat(document.getElementById('fee').value || 0)
-                    };
-                    await addDoc(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'transactions'), data);
-                    e.target.reset();
-                    document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
-                };
+            const googleBtn = document.getElementById('google-sign-in-btn');
+            if(googleBtn) googleBtn.onclick = async () => {
+                try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); }
+            };
+            
+            const closeAuthBtn = document.getElementById('close-auth-btn');
+            if(closeAuthBtn) closeAuthBtn.onclick = () => {
+                document.getElementById('auth-modal').classList.add('hidden');
+            };
 
-                document.getElementById('div-form').onsubmit = async (e) => {
-                    e.preventDefault();
-                    if (!auth.currentUser) return;
-                    const data = {
-                        type: document.getElementById('div-type').value,
-                        symbol: document.getElementById('div-symbol').value.toUpperCase(),
-                        amount: parseFloat(document.getElementById('div-amount').value),
-                        date: document.getElementById('div-date').value
-                    };
-                    await addDoc(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'dividends'), data);
-                    e.target.reset();
-                    document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
-                };
-
-                document.getElementById('fee-form').onsubmit = async (e) => {
-                    e.preventDefault();
-                    if (!auth.currentUser) return;
-                    const data = {
-                        description: document.getElementById('fee-desc').value,
-                        amount: parseFloat(document.getElementById('fee-amount').value),
-                        date: document.getElementById('fee-date').value
-                    };
-                    await addDoc(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'fees'), data);
-                    e.target.reset();
-                    document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
-                };
-
-                document.getElementById('google-sign-in-btn').onclick = async () => {
-                    try {
-                        await signInWithPopup(auth, provider);
-                    } catch (err) {
-                        alert(`Sign In Failed!\n\nReason: ${err.code}`);
+            onAuthStateChanged(auth, async (user) => {
+                const status = document.getElementById('auth-status');
+                const modal = document.getElementById('auth-modal');
+                if (user) {
+                    modal.classList.add('hidden');
+                    status.innerHTML = `<span class="sync-indicator bg-emerald-500"></span><span>${user.displayName || 'Synced'}</span>`;
+                    status.onclick = () => { if(confirm("Sign out?")) signOut(auth).then(()=>location.reload()); };
+                    
+                    const sSnap = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'global'));
+                    if (sSnap.exists() && sSnap.data().usdToHkd) {
+                        usdToHkd = sSnap.data().usdToHkd;
+                        document.getElementById('fx-rate-input').value = usdToHkd.toFixed(4);
+                        if(sSnap.data().isManual) document.getElementById('fx-live-indicator').classList.add('hidden');
                     }
-                };
-
-                window.handleSignOut = () => signOut(auth).then(() => location.reload());
-
-                onAuthStateChanged(auth, user => {
-                    const zone = document.getElementById('auth-zone');
-                    const main = document.getElementById('main-content');
-                    const overlay = document.getElementById('login-overlay');
-
-                    if (user) {
-                        overlay.classList.add('hidden');
-                        main.classList.remove('opacity-50', 'pointer-events-none');
-                        zone.innerHTML = `<div class="flex items-center gap-4"><div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border rounded-lg text-[10px] font-bold uppercase"><span class="sync-indicator bg-emerald-500"></span><span>${user.displayName || 'User'}</span></div><button onclick="handleSignOut()" class="text-[10px] font-black uppercase text-slate-400 hover:text-rose-500">Sign Out</button></div>`;
-                        
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), s => { transactions = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'dividends'), s => { dividends = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'fees'), s => { adminFees = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); });
-                    } else {
-                        overlay.classList.remove('hidden');
-                        zone.innerHTML = `<button onclick="document.getElementById('google-sign-in-btn').click()" class="bg-indigo-600 text-white text-[10px] font-black uppercase px-4 py-2 rounded-lg">Sign In</button>`;
-                    }
-                });
-            } catch (e) { console.error(e); }
+                    onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), s => { transactions = s.docs.map(d => ({...d.data(), id: d.id})); render(); }, e => console.error(e));
+                    onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'dividends'), s => { dividends = s.docs.map(d => ({...d.data(), id: d.id})); render(); }, e => console.error(e));
+                    onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'fees'), s => { adminFees = s.docs.map(d => ({...d.data(), id: d.id})); render(); }, e => console.error(e));
+                    onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); }, e => console.error(e));
+                } else {
+                    modal.classList.remove('hidden');
+                    status.innerHTML = `<span class="sync-indicator bg-slate-300"></span><span>Offline</span>`;
+                }
+            });
         };
 
         boot();
