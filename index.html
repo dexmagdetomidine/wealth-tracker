@@ -20,9 +20,8 @@
         .modal-overlay { background-color: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); }
         .live-tag { animation: pulse-light 2s infinite; }
         @keyframes pulse-light { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        /* Prevent table truncation */
         .overflow-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        table { min-width: 900px; }
+        table { min-width: 950px; }
     </style>
 </head>
 <body class="min-h-screen pb-20">
@@ -32,7 +31,7 @@
         <div class="modal-overlay absolute inset-0" onclick="toggleSettings()"></div>
         <div class="card relative w-full max-w-lg p-8 shadow-2xl">
             <h3 class="text-sm font-black uppercase tracking-widest text-indigo-600 mb-2">Cloud Configuration</h3>
-            <p class="text-[11px] text-slate-500 mb-6 leading-relaxed">Required for syncing data. Paste your Firebase config JSON below.</p>
+            <p class="text-[11px] text-slate-500 mb-6 leading-relaxed">Required for syncing data. Ensure your Firebase JSON is correct.</p>
             
             <div class="space-y-4">
                 <div class="space-y-1">
@@ -139,7 +138,7 @@
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Quantity</label><input type="number" id="shares" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" required></div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Price</label><input type="number" id="price" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" required></div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Fee</label><input type="number" id="fee" step="any" value="0" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"></div>
-                    <button type="submit" id="save-tx-btn" class="col-span-2 md:col-span-1 mt-5 bg-indigo-600 text-white font-black py-2.5 rounded-xl uppercase text-[10px] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 disabled:opacity-50">Save Trade</button>
+                    <button type="submit" id="save-tx-btn" disabled class="col-span-2 md:col-span-1 mt-5 bg-indigo-600 text-white font-black py-2.5 rounded-xl uppercase text-[10px] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 disabled:opacity-50">Connecting...</button>
                 </form>
             </div>
             
@@ -156,7 +155,7 @@
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Amount</label><input type="number" id="div-amount" step="any" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="div-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"></div>
                     </div>
-                    <button type="submit" id="log-income-btn" class="w-full bg-blue-600 text-white font-black py-2.5 rounded-xl uppercase text-[10px] disabled:opacity-50">Log Income</button>
+                    <button type="submit" id="log-income-btn" disabled class="w-full bg-blue-600 text-white font-black py-2.5 rounded-xl uppercase text-[10px] disabled:opacity-50">Log Income</button>
                 </form>
             </div>
 
@@ -170,7 +169,7 @@
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Ccy</label><select id="fee-currency" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"><option value="HKD">HKD</option><option value="USD">USD</option></select></div>
                     </div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="fee-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"></div>
-                    <button type="submit" id="log-fees-btn" class="w-full bg-rose-500 text-white font-black py-2.5 rounded-xl uppercase text-[10px] disabled:opacity-50">Log Fee</button>
+                    <button type="submit" id="log-fees-btn" disabled class="w-full bg-rose-500 text-white font-black py-2.5 rounded-xl uppercase text-[10px] disabled:opacity-50">Log Fee</button>
                 </form>
             </div>
         </div>
@@ -223,8 +222,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // APP STATE
         let transactions = [], dividends = [], adminFees = [], marketPrices = {};
@@ -237,15 +236,7 @@
             return sym + (val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
 
-        // HANDSHAKE GUARD - Prevents button usage if not connected
-        const checkCloud = () => {
-            if (!user) {
-                toggleSettings();
-                return false;
-            }
-            return true;
-        };
-
+        // UI Handlers
         window.toggleSettings = () => {
             const modal = document.getElementById('settings-modal');
             modal.classList.toggle('hidden');
@@ -254,7 +245,7 @@
 
         window.saveSettings = () => {
             const config = document.getElementById('fb-config-input').value.trim();
-            if (!config) return alert("Please enter Firebase Configuration");
+            if (!config) return;
             try {
                 JSON.parse(config);
                 localStorage.setItem('we_fb_config', config);
@@ -269,13 +260,12 @@
             document.getElementById('tab-history').classList.toggle('tab-active', v === 'history');
         };
 
-        // RENDER LOGIC
+        // Render Logic
         function render() {
             const holdings = {};
             let totalTradingFeesHKD = 0, totalIncomeHKD = 0, totalRealizedHKD = 0;
             let totalAdminFeesHKD = adminFees.reduce((acc, f) => acc + (f.currency === 'USD' ? f.amount * usdToHkd : f.amount), 0);
 
-            // Calculate Portfolio from Transactions
             transactions.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(t => {
                 const feeHKD = (t.currency === 'USD' ? t.fee * usdToHkd : t.fee);
                 totalTradingFeesHKD += feeHKD;
@@ -302,7 +292,6 @@
 
             dividends.forEach(d => totalIncomeHKD += (d.currency === 'USD' ? d.amount * usdToHkd : d.amount));
 
-            // Populate Portfolio Table
             const pBody = document.getElementById('portfolio-body');
             let totalMktHKD = 0, totalCostHKD = 0, hkVal = 0, usVal = 0, stkVal = 0, bndVal = 0;
             pBody.innerHTML = '';
@@ -311,16 +300,11 @@
                 const factor = (h.type === 'BOND' ? 0.01 : 1);
                 const avgPriceLocal = (h.costHKD / h.shares / factor) / (h.currency === 'USD' ? usdToHkd : 1);
                 const currentPriceLocal = marketPrices[h.symbol] !== undefined ? marketPrices[h.symbol] : avgPriceLocal;
+                const mktValHKD = h.currency === 'USD' ? (h.shares * currentPriceLocal * factor * usdToHkd) : (h.shares * currentPriceLocal * factor);
                 
-                const marketValHKD = h.currency === 'USD' ? (h.shares * currentPriceLocal * factor * usdToHkd) : (h.shares * currentPriceLocal * factor);
-                
-                totalMktHKD += marketValHKD;
-                totalCostHKD += h.costHKD;
-                if (h.currency === 'HKD') hkVal += marketValHKD; else usVal += marketValHKD;
-                if (h.type === 'STOCK') stkVal += marketValHKD; else bndVal += marketValHKD;
-
-                const plHKD = marketValHKD - h.costHKD;
-                const plPct = (plHKD / h.costHKD * 100).toFixed(2);
+                totalMktHKD += mktValHKD; totalCostHKD += h.costHKD;
+                if (h.currency === 'HKD') hkVal += mktValHKD; else usVal += mktValHKD;
+                if (h.type === 'STOCK') stkVal += mktValHKD; else bndVal += mktValHKD;
 
                 pBody.innerHTML += `<tr class="hover:bg-slate-50">
                     <td class="px-6 py-4 flex items-center gap-3">
@@ -332,24 +316,21 @@
                     <td class="px-6 py-4 text-right">
                         <input type="number" step="any" value="${currentPriceLocal.toFixed(3)}" 
                             onchange="window.savePrice('${h.symbol}', this.value)" 
-                            class="price-input text-indigo-600 focus:bg-white">
+                            class="price-input text-indigo-600">
                     </td>
-                    <td class="px-6 py-4 text-right font-black">${fmt(marketValHKD)}</td>
-                    <td class="px-6 py-4 text-right">
-                        <div class="font-black ${plHKD >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${fmt(plHKD)}</div>
-                        <div class="text-[9px] font-black opacity-60">${plPct}%</div>
+                    <td class="px-6 py-4 text-right font-black">${fmt(mktValHKD)}</td>
+                    <td class="px-6 py-4 text-right font-black ${mktValHKD >= h.costHKD ? 'text-emerald-500' : 'text-rose-500'}">
+                        ${((mktValHKD - h.costHKD) / h.costHKD * 100).toFixed(2)}%
                     </td>
                 </tr>`;
             });
 
-            // Summary Stats
             document.getElementById('total-val-hkd').innerText = fmt(totalMktHKD);
             document.getElementById('unrealized-gain').innerText = `Unrealized: ${fmt(totalMktHKD - totalCostHKD)}`;
             document.getElementById('total-div-hkd').innerText = fmt(totalIncomeHKD);
             document.getElementById('total-fees-display').innerText = fmt(totalTradingFeesHKD + totalAdminFeesHKD);
             document.getElementById('grand-total-profit').innerText = fmt((totalMktHKD - totalCostHKD) + totalRealizedHKD + totalIncomeHKD - totalAdminFeesHKD);
 
-            // Allocation bars
             const pct = (v, t) => t > 0 ? (v/t*100).toFixed(1) : 0;
             document.getElementById('exp-hk-pct').innerText = pct(hkVal, totalMktHKD) + '%';
             document.getElementById('exp-hk-bar').style.width = pct(hkVal, totalMktHKD) + '%';
@@ -360,7 +341,6 @@
             document.getElementById('exp-bond-pct').innerText = pct(bndVal, totalMktHKD) + '%';
             document.getElementById('exp-bond-bar').style.width = pct(bndVal, totalMktHKD) + '%';
 
-            // Ledger
             const hBody = document.getElementById('history-body');
             hBody.innerHTML = '';
             const allItems = [
@@ -372,43 +352,100 @@
             allItems.forEach(item => {
                 const label = item.itype === 'TRADE' ? item.action : (item.itype === 'INCOME' ? item.type : 'FEE');
                 const detail = item.symbol || item.description;
-                const qtyVal = item.itype === 'TRADE' ? `${item.shares} @ ${item.price}` : fmt(item.amount, item.currency);
-                
                 hBody.innerHTML += `<tr class="hover:bg-slate-50">
                     <td class="px-6 py-4 text-slate-400 font-bold">${item.date}</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-1 rounded text-[9px] font-black uppercase ${item.itype==='TRADE' ? (item.action==='BUY'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700') : (item.itype==='INCOME'?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700')}">
-                            ${label}
-                        </span>
-                    </td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${item.itype==='TRADE' ? 'bg-indigo-50 text-indigo-700':'bg-slate-50'}">${label}</span></td>
                     <td class="px-6 py-4 font-black">${detail}</td>
-                    <td class="px-6 py-4 text-right font-bold text-slate-600">${qtyVal}</td>
+                    <td class="px-6 py-4 text-right font-bold text-slate-600">${item.itype === 'TRADE' ? item.shares : fmt(item.amount, item.currency)}</td>
                     <td class="px-6 py-4 text-center">
-                        <button onclick="window.deleteItem('${item.itype}', '${item.id}')" class="p-2 text-rose-300 hover:text-rose-600">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </button>
+                        <button onclick="window.deleteItem('${item.itype}', '${item.id}')" class="p-2 text-rose-300 hover:text-rose-600">Delete</button>
                     </td>
                 </tr>`;
             });
         }
 
-        // ACTIONS
+        // Database Ops
         window.savePrice = async (symbol, price) => {
-            if (!checkCloud()) return;
+            if (!user) return toggleSettings();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'prices', symbol), { price: parseFloat(price) });
         };
 
         window.deleteItem = async (type, id) => {
-            if (!checkCloud()) return;
+            if (!user) return toggleSettings();
             if (!confirm("Delete this entry?")) return;
-            const collectionName = type === 'TRADE' ? 'transactions' : (type === 'INCOME' ? 'dividends' : 'fees');
-            await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, collectionName, id));
+            const coll = type === 'TRADE' ? 'transactions' : (type === 'INCOME' ? 'dividends' : 'fees');
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, coll, id));
         };
 
-        // SUBMIT HANDLERS
+        // FX Hybrid Logic
+        const fetchLiveFX = async () => {
+            try {
+                const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+                const data = await res.json();
+                if (data.rates.HKD) {
+                    usdToHkd = data.rates.HKD;
+                    document.getElementById('fx-rate-input').value = usdToHkd.toFixed(4);
+                    render();
+                }
+            } catch(e) { console.log("FX fetch failed, using manual."); }
+        };
+
+        document.getElementById('fx-rate-input').onchange = (e) => {
+            usdToHkd = parseFloat(e.target.value);
+            document.getElementById('fx-live-indicator').classList.add('hidden'); // Show manual state
+            render();
+        };
+
+        // Boot
+        async function boot() {
+            const configStr = localStorage.getItem('we_fb_config');
+            if (!configStr) return toggleSettings();
+
+            try {
+                const config = JSON.parse(configStr);
+                const app = initializeApp(config);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                document.getElementById('auth-gate').classList.remove('hidden');
+                document.getElementById('google-signin-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
+
+                onAuthStateChanged(auth, u => {
+                    user = u;
+                    const dot = document.getElementById('sync-dot');
+                    const text = document.getElementById('sync-text');
+
+                    if (u) {
+                        dot.className = "sync-indicator bg-emerald-500";
+                        text.innerText = u.displayName || "Online";
+                        
+                        // Enable buttons once auth is confirmed
+                        document.getElementById('save-tx-btn').disabled = false;
+                        document.getElementById('save-tx-btn').innerText = "Save Trade";
+                        document.getElementById('log-income-btn').disabled = false;
+                        document.getElementById('log-fees-btn').disabled = false;
+
+                        const root = ['artifacts', appId, 'users', u.uid];
+                        onSnapshot(collection(db, ...root, 'transactions'), s => { transactions = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
+                        onSnapshot(collection(db, ...root, 'dividends'), s => { dividends = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
+                        onSnapshot(collection(db, ...root, 'fees'), s => { adminFees = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
+                        onSnapshot(collection(db, ...root, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); });
+                        
+                        document.getElementById('settings-modal').classList.add('hidden');
+                    } else {
+                        dot.className = "sync-indicator bg-amber-400";
+                        text.innerText = "Sign In";
+                    }
+                });
+
+                fetchLiveFX();
+            } catch (e) { toggleSettings(); }
+        }
+
+        // Form Listeners
         document.getElementById('tx-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!checkCloud()) return;
+            if(!user) return;
             const id = crypto.randomUUID();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id), {
                 id, date: document.getElementById('trade-date').value,
@@ -422,83 +459,26 @@
 
         document.getElementById('div-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!checkCloud()) return;
+            if(!user) return;
             const id = crypto.randomUUID();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'dividends', id), {
                 id, type: document.getElementById('div-type').value, symbol: document.getElementById('div-symbol').value.toUpperCase(),
                 amount: parseFloat(document.getElementById('div-amount').value), currency: document.getElementById('div-currency').value, 
                 date: document.getElementById('div-date').value
             });
-            e.target.reset(); document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+            e.target.reset();
         };
 
         document.getElementById('fee-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!checkCloud()) return;
+            if(!user) return;
             const id = crypto.randomUUID();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'fees', id), {
                 id, description: document.getElementById('fee-desc').value, amount: parseFloat(document.getElementById('fee-amount').value),
                 currency: document.getElementById('fee-currency').value, date: document.getElementById('fee-date').value
             });
-            e.target.reset(); document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+            e.target.reset();
         };
-
-        document.getElementById('fx-rate-input').onchange = async (e) => { 
-            usdToHkd = parseFloat(e.target.value); 
-            render(); 
-            if(user) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'fx'), { rate: usdToHkd });
-        };
-
-        // BOOTSTRAP
-        async function boot() {
-            const configStr = localStorage.getItem('we_fb_config');
-            if (!configStr) {
-                document.getElementById('sync-text').innerText = "Config Needed";
-                toggleSettings();
-                return;
-            }
-
-            try {
-                const config = JSON.parse(configStr);
-                const app = initializeApp(config);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
-                document.getElementById('auth-gate').classList.remove('hidden');
-                document.getElementById('google-signin-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
-
-                onAuthStateChanged(auth, u => {
-                    user = u;
-                    const status = document.getElementById('auth-status');
-                    const dot = document.getElementById('sync-dot');
-                    const text = document.getElementById('sync-text');
-
-                    if (u) {
-                        dot.className = "sync-indicator bg-emerald-500";
-                        text.innerText = u.displayName || "Online";
-                        
-                        // Listen for data
-                        const root = ['artifacts', appId, 'users', u.uid];
-                        
-                        onSnapshot(doc(db, ...root, 'settings', 'fx'), s => { if(s.exists()){ usdToHkd = s.data().rate; document.getElementById('fx-rate-input').value = usdToHkd; render(); }});
-                        onSnapshot(collection(db, ...root, 'transactions'), s => { transactions = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, ...root, 'dividends'), s => { dividends = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, ...root, 'fees'), s => { adminFees = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, ...root, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); });
-                        
-                        document.getElementById('settings-modal').classList.add('hidden');
-                    } else {
-                        dot.className = "sync-indicator bg-amber-400";
-                        text.innerText = "Sign In Required";
-                        transactions = []; dividends = []; adminFees = []; render();
-                    }
-                });
-            } catch (e) {
-                alert("Cloud configuration error. Please check your Firebase JSON.");
-                localStorage.removeItem('we_fb_config');
-                toggleSettings();
-            }
-        }
 
         boot();
         document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
