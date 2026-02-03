@@ -21,6 +21,8 @@
         .modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
         @keyframes pulse-light { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .live-tag { animation: pulse-light 2s infinite; }
+        /* Prevent truncation in tables */
+        .table-container { min-width: 800px; }
     </style>
 </head>
 <body class="min-h-screen pb-20 text-slate-900">
@@ -30,7 +32,7 @@
         <div class="modal-overlay absolute inset-0" onclick="toggleSettings()"></div>
         <div class="card relative w-full max-w-lg p-8 shadow-2xl">
             <h3 class="text-sm font-black uppercase tracking-widest text-indigo-600 mb-2">Cloud Sync Settings</h3>
-            <p class="text-[11px] text-slate-500 mb-4 font-medium">Paste your Firebase config JSON below. Ensure it starts with <code class="bg-slate-100 px-1">{</code> and ends with <code class="bg-slate-100 px-1">}</code>.</p>
+            <p class="text-[11px] text-slate-500 mb-4 font-medium">Paste your Firebase config JSON below to enable Google Sign-In and Cloud Saving.</p>
             
             <div id="config-error-msg" class="hidden mb-4 p-3 bg-rose-50 border border-rose-100 text-rose-600 text-[10px] font-bold rounded-lg uppercase"></div>
 
@@ -41,7 +43,7 @@
                 </div>
                 <div class="space-y-1">
                     <label class="text-[10px] font-black text-slate-400 uppercase">Portfolio/App ID</label>
-                    <input type="text" id="fb-appid-input" placeholder="wealth-engine-v1" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
+                    <input type="text" id="fb-appid-input" placeholder="wealth-engine-pro-v3" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
                 </div>
                 <div class="flex gap-2 pt-2">
                     <button onclick="saveSettings()" class="flex-1 bg-indigo-600 text-white font-black py-3 rounded-xl uppercase text-xs shadow-lg shadow-indigo-100">Apply & Sync</button>
@@ -71,15 +73,15 @@
                             <input type="number" id="fx-rate-input" step="0.0001" 
                                 class="w-16 bg-transparent border-none p-0 text-xs font-black text-indigo-700 focus:ring-0 focus:outline-none" 
                                 value="7.8210">
-                            <span id="fx-live-indicator" class="text-[8px] font-black bg-indigo-200 text-indigo-700 px-1 rounded live-tag hidden">LIVE</span>
+                            <span id="fx-live-indicator" class="text-[8px] font-black bg-indigo-200 text-indigo-700 px-1 rounded live-tag">LIVE</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <div id="auth-status" class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border rounded-lg text-[10px] font-bold uppercase cursor-pointer">
+                    <div id="auth-status" onclick="toggleSettings()" class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border rounded-lg text-[10px] font-bold uppercase cursor-pointer">
                         <span id="sync-dot" class="sync-indicator bg-slate-300"></span>
-                        <span id="sync-text">Connecting...</span>
+                        <span id="sync-text">Setup Cloud</span>
                     </div>
                     <button onclick="toggleSettings()" class="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -143,7 +145,6 @@
             <div class="lg:col-span-6 card p-6">
                 <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Trade Execution</h3>
                 <form id="tx-form" class="space-y-4">
-                    <input type="hidden" id="edit-id">
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="trade-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Asset Class</label><select id="assetType" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"><option value="STOCK">Equity / ETF</option><option value="BOND">Bond / FI</option></select></div>
@@ -165,13 +166,13 @@
             <div class="lg:col-span-3 card p-6">
                 <h3 class="text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">Income Log</h3>
                 <form id="div-form" class="space-y-3">
-                    <input type="hidden" id="div-edit-id">
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Type</label><select id="div-type" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"><option value="DIVIDEND">Dividend</option><option value="COUPON">Coupon</option></select></div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Asset</label><input type="text" id="div-symbol" placeholder="Symbol" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold uppercase" required></div>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Amount</label><input type="number" id="div-amount" placeholder="0.00" step="any" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Ccy</label><select id="div-currency" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"><option value="HKD">HKD</option><option value="USD">USD</option></select></div>
                     </div>
+                    <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="div-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"></div>
                     <button type="submit" id="div-submit-btn" class="w-full bg-emerald-600 text-white font-black py-2.5 rounded-lg uppercase text-xs">Log Income</button>
                 </form>
             </div>
@@ -179,12 +180,12 @@
             <div class="lg:col-span-3 card p-6">
                 <h3 class="text-xs font-black uppercase tracking-widest text-rose-500 mb-4">Admin Fees</h3>
                 <form id="fee-form" class="space-y-3">
-                    <input type="hidden" id="fee-edit-id">
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Desc</label><input type="text" id="fee-desc" placeholder="Custody Fee" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Amount</label><input type="number" id="fee-amount" placeholder="0.00" step="any" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Ccy</label><select id="fee-currency" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"><option value="HKD">HKD</option><option value="USD">USD</option></select></div>
                     </div>
+                    <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="fee-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold"></div>
                     <button type="submit" id="fee-submit-btn" class="w-full bg-rose-500 text-white font-black py-2.5 rounded-lg uppercase text-xs">Log Fee</button>
                 </form>
             </div>
@@ -197,8 +198,8 @@
             </div>
         </div>
 
-        <div class="card overflow-hidden">
-            <div id="portfolio-view" class="overflow-x-auto">
+        <div class="card overflow-x-auto">
+            <div id="portfolio-view" class="table-container">
                 <table class="w-full text-left">
                     <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-black">
                         <tr><th class="px-6 py-4">Security</th><th class="px-6 py-4 text-right">Units</th><th class="px-6 py-4 text-right">Avg Cost</th><th class="px-6 py-4 text-right">Mkt Price</th><th class="px-6 py-4 text-right">Mkt Value</th><th class="px-6 py-4 text-right">P/L</th></tr>
@@ -206,8 +207,8 @@
                     <tbody id="portfolio-body" class="divide-y divide-slate-100 font-medium text-sm"></tbody>
                 </table>
             </div>
-            <div id="history-view" class="hidden overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+            <div id="history-view" class="hidden table-container">
+                <table class="w-full text-left">
                     <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-black">
                         <tr><th class="px-6 py-4">Date</th><th class="px-6 py-4">Activity</th><th class="px-6 py-4">Detail</th><th class="px-6 py-4 text-right">Value</th><th class="px-6 py-4 text-center">Actions</th></tr>
                     </thead>
@@ -241,12 +242,7 @@
         window.saveSettings = () => {
             const config = document.getElementById('fb-config-input').value.trim();
             const customAppId = document.getElementById('fb-appid-input').value.trim();
-            
-            if (!config) {
-                showError("Please paste your Firebase Config JSON");
-                return;
-            }
-
+            if (!config) return showError("Please paste your Firebase Config JSON");
             try {
                 JSON.parse(config);
                 localStorage.setItem('we_fb_config', config);
@@ -312,7 +308,7 @@
                 if (h.type === 'STOCK') stkVal += marketValHKD; else bndVal += marketValHKD;
 
                 pBody.innerHTML += `<tr class="hover:bg-slate-50">
-                    <td class="px-6 py-4 flex items-center gap-2"><span class="currency-pill ${h.currency==='USD'?'bg-blue-100 text-blue-700':'bg-rose-100 text-rose-700'}">${h.currency}</span><span class="font-black">${h.symbol}</span></td>
+                    <td class="px-6 py-4 flex items-center gap-2 min-w-[150px]"><span class="currency-pill ${h.currency==='USD'?'bg-blue-100 text-blue-700':'bg-rose-100 text-rose-700'}">${h.currency}</span><span class="font-black">${h.symbol}</span></td>
                     <td class="px-6 py-4 text-right font-black">${h.shares.toLocaleString()}</td>
                     <td class="px-6 py-4 text-right text-slate-400 text-[10px] font-bold">${fmt(h.cost/h.shares/factor, h.currency)}</td>
                     <td class="px-6 py-4 text-right"><input type="number" step="any" value="${curPrice.toFixed(3)}" onchange="window.savePrice('${h.symbol}', this.value)" class="price-input font-black text-indigo-600 focus:bg-white"></td>
@@ -355,16 +351,20 @@
             });
         }
 
-        window.savePrice = async (symbol, price) => { if (user) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'prices', symbol), { price: parseFloat(price) }); };
+        window.savePrice = async (symbol, price) => { if (!user) return toggleSettings(); await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'prices', symbol), { price: parseFloat(price) }); };
         window.deleteGeneric = async (type, id) => {
-            if (!user || !confirm("Delete?")) return;
+            if (!user) return toggleSettings();
+            if (!confirm("Permanently delete this entry?")) return;
             const col = type === 'TRADE' ? 'transactions' : (type === 'INCOME' ? 'dividends' : 'fees');
             await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, col, id));
         };
 
+        // Handshake Guard for all forms
+        const authCheck = () => { if(!user) { toggleSettings(); return false; } return true; };
+
         document.getElementById('tx-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!user) return toggleSettings();
+            if (!authCheck()) return;
             const id = crypto.randomUUID();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id), {
                 id, date: document.getElementById('trade-date').value,
@@ -378,24 +378,31 @@
 
         document.getElementById('div-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!user) return toggleSettings();
+            if (!authCheck()) return;
             const id = crypto.randomUUID();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'dividends', id), {
                 id, type: document.getElementById('div-type').value, symbol: document.getElementById('div-symbol').value.toUpperCase(),
-                amount: parseFloat(document.getElementById('div-amount').value), currency: document.getElementById('div-currency').value, date: new Date().toISOString().split('T')[0]
+                amount: parseFloat(document.getElementById('div-amount').value), currency: document.getElementById('div-currency').value, 
+                date: document.getElementById('div-date').value
             });
-            e.target.reset();
+            e.target.reset(); document.getElementById('div-date').valueAsDate = new Date();
         };
 
         document.getElementById('fee-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!user) return toggleSettings();
+            if (!authCheck()) return;
             const id = crypto.randomUUID();
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'fees', id), {
                 id, description: document.getElementById('fee-desc').value, amount: parseFloat(document.getElementById('fee-amount').value),
-                currency: document.getElementById('fee-currency').value, date: new Date().toISOString().split('T')[0]
+                currency: document.getElementById('fee-currency').value, date: document.getElementById('fee-date').value
             });
-            e.target.reset();
+            e.target.reset(); document.getElementById('fee-date').valueAsDate = new Date();
+        };
+
+        document.getElementById('fx-rate-input').onchange = async (e) => { 
+            usdToHkd = parseFloat(e.target.value); 
+            render(); 
+            if(user) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'fx'), { rate: usdToHkd });
         };
 
         async function boot() {
@@ -424,14 +431,28 @@
                     if (u) {
                         status.innerHTML = `<span class="sync-indicator bg-emerald-500"></span><span>${u.displayName || 'Synced'}</span>`;
                         status.onclick = () => { if(confirm("Sign out?")) signOut(auth).then(()=>location.reload()); };
+                        
                         const root = ['artifacts', appId, 'users', u.uid];
-                        onSnapshot(collection(db, ...root, 'transactions'), s => { transactions = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, ...root, 'dividends'), s => { dividends = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, ...root, 'fees'), s => { adminFees = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, ...root, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); });
+                        
+                        // Load User Settings First
+                        onSnapshot(doc(db, ...root, 'settings', 'fx'), s => {
+                            if(s.exists()) {
+                                usdToHkd = s.data().rate;
+                                document.getElementById('fx-rate-input').value = usdToHkd;
+                                render();
+                            }
+                        });
+
+                        // Standard Listeners
+                        onSnapshot(collection(db, ...root, 'transactions'), s => { transactions = s.docs.map(d => d.data()); render(); }, e => console.error(e));
+                        onSnapshot(collection(db, ...root, 'dividends'), s => { dividends = s.docs.map(d => d.data()); render(); }, e => console.error(e));
+                        onSnapshot(collection(db, ...root, 'fees'), s => { adminFees = s.docs.map(d => d.data()); render(); }, e => console.error(e));
+                        onSnapshot(collection(db, ...root, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); }, e => console.error(e));
+                        
+                        // Close modal on login
+                        document.getElementById('settings-modal').classList.add('hidden');
                     } else {
                         status.innerHTML = `<span class="sync-indicator bg-amber-400"></span><span>Sign In</span>`;
-                        status.onclick = () => toggleSettings();
                     }
                 });
             } catch (e) {
@@ -443,7 +464,6 @@
 
         boot();
         document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
-        document.getElementById('fx-rate-input').onchange = (e) => { usdToHkd = parseFloat(e.target.value); render(); };
     </script>
 </body>
 </html>
