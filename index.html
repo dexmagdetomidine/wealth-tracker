@@ -270,7 +270,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==========================================
         // CONFIGURATION: PASTE YOUR FIREBASE KEYS HERE
@@ -323,8 +323,8 @@ const firebaseConfig = {
 
             transactions.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(t => {
                 tradingFeesHKD += (t.currency === 'USD' ? t.fee * usdToHkd : t.fee);
-                if (!holdings[t.symbol]) holdings[t.symbol] = { symbol: t.symbol, type: t.type, currency: t.currency, shares: 0, cost: 0 };
-                const factor = (t.type === 'BOND') ? 0.01 : 1.0;
+                if (!holdings[t.symbol]) holdings[t.symbol] = { symbol: t.symbol, type: t.assetType, currency: t.currency, shares: 0, cost: 0 };
+                const factor = (t.assetType === 'BOND') ? 0.01 : 1.0;
                 if (t.action === 'BUY') {
                     holdings[t.symbol].shares += t.shares;
                     holdings[t.symbol].cost += (t.shares * t.price * factor) + t.fee;
@@ -388,19 +388,21 @@ const firebaseConfig = {
                 document.getElementById('exp-bond-bar').style.width = safePct(bondValue, totalMarketValHKD) + '%';
 
                 const hBody = document.getElementById('history-body');
-                hBody.innerHTML = '';
-                [...transactions.map(t=>({...t, itype:'TRADE'})), ...dividends.map(d=>({...d, itype:'INCOME'})), ...adminFees.map(f=>({...f, itype:'FEE'}))]
-                    .sort((a,b) => new Date(b.date) - new Date(a.date))
-                    .forEach(item => {
-                        const label = item.itype === 'TRADE' ? item.action : (item.itype === 'INCOME' ? item.type : 'FEE');
-                        hBody.innerHTML += `<tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4 text-slate-400 font-bold">${item.date}</td>
-                            <td class="px-6 py-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${item.itype==='TRADE'? (item.action==='BUY'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700') : 'bg-emerald-50 text-emerald-700'}">${label}</span></td>
-                            <td class="px-6 py-4 font-black">${item.symbol || item.description}</td>
-                            <td class="px-6 py-4 text-right font-bold text-slate-600">${item.itype==='TRADE'? `${item.shares} @ ${item.price}` : fmt(item.amount)}</td>
-                            <td class="px-6 py-4 text-center"><button onclick="deleteItem('${item.itype}', '${item.id}')" class="text-rose-400 font-black uppercase text-[10px]">Delete</button></td>
-                        </tr>`;
-                    });
+                if (hBody) {
+                    hBody.innerHTML = '';
+                    [...transactions.map(t=>({...t, id: t.id, itype:'TRADE'})), ...dividends.map(d=>({...d, id: d.id, itype:'INCOME'})), ...adminFees.map(f=>({...f, id: f.id, itype:'FEE'}))]
+                        .sort((a,b) => new Date(b.date) - new Date(a.date))
+                        .forEach(item => {
+                            const label = item.itype === 'TRADE' ? item.action : (item.itype === 'INCOME' ? item.type : 'FEE');
+                            hBody.innerHTML += `<tr class="hover:bg-slate-50">
+                                <td class="px-6 py-4 text-slate-400 font-bold">${item.date}</td>
+                                <td class="px-6 py-4"><span class="px-2 py-1 rounded text-[9px] font-black uppercase ${item.itype==='TRADE'? (item.action==='BUY'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700') : 'bg-emerald-50 text-emerald-700'}">${label}</span></td>
+                                <td class="px-6 py-4 font-black">${item.symbol || item.description}</td>
+                                <td class="px-6 py-4 text-right font-bold text-slate-600">${item.itype==='TRADE'? `${item.shares} @ ${item.price}` : fmt(item.amount)}</td>
+                                <td class="px-6 py-4 text-center"><button onclick="deleteItem('${item.itype}', '${item.id}')" class="text-rose-400 font-black uppercase text-[10px]">Delete</button></td>
+                            </tr>`;
+                        });
+                }
             }
         }
 
@@ -415,11 +417,56 @@ const firebaseConfig = {
                 db = getFirestore(app);
                 const provider = new GoogleAuthProvider();
 
+                document.getElementById('tx-form').onsubmit = async (e) => {
+                    e.preventDefault();
+                    if (!auth.currentUser) return;
+                    const data = {
+                        date: document.getElementById('trade-date').value,
+                        assetType: document.getElementById('assetType').value,
+                        symbol: document.getElementById('symbol').value.toUpperCase(),
+                        action: document.getElementById('action').value,
+                        shares: parseFloat(document.getElementById('shares').value),
+                        price: parseFloat(document.getElementById('price').value),
+                        currency: document.getElementById('currency').value,
+                        fee: parseFloat(document.getElementById('fee').value || 0)
+                    };
+                    await addDoc(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'transactions'), data);
+                    e.target.reset();
+                    document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+                };
+
+                document.getElementById('div-form').onsubmit = async (e) => {
+                    e.preventDefault();
+                    if (!auth.currentUser) return;
+                    const data = {
+                        type: document.getElementById('div-type').value,
+                        symbol: document.getElementById('div-symbol').value.toUpperCase(),
+                        amount: parseFloat(document.getElementById('div-amount').value),
+                        date: document.getElementById('div-date').value
+                    };
+                    await addDoc(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'dividends'), data);
+                    e.target.reset();
+                    document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+                };
+
+                document.getElementById('fee-form').onsubmit = async (e) => {
+                    e.preventDefault();
+                    if (!auth.currentUser) return;
+                    const data = {
+                        description: document.getElementById('fee-desc').value,
+                        amount: parseFloat(document.getElementById('fee-amount').value),
+                        date: document.getElementById('fee-date').value
+                    };
+                    await addDoc(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'fees'), data);
+                    e.target.reset();
+                    document.querySelectorAll('input[type="date"]').forEach(i => i.valueAsDate = new Date());
+                };
+
                 document.getElementById('google-sign-in-btn').onclick = async () => {
                     try {
                         await signInWithPopup(auth, provider);
                     } catch (err) {
-                        alert("Sign In Error: " + err.message + "\n\nTry disabling popup blockers.");
+                        alert(`Sign In Failed!\n\nReason: ${err.code}`);
                     }
                 };
 
@@ -435,9 +482,9 @@ const firebaseConfig = {
                         main.classList.remove('opacity-50', 'pointer-events-none');
                         zone.innerHTML = `<div class="flex items-center gap-4"><div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border rounded-lg text-[10px] font-bold uppercase"><span class="sync-indicator bg-emerald-500"></span><span>${user.displayName || 'User'}</span></div><button onclick="handleSignOut()" class="text-[10px] font-black uppercase text-slate-400 hover:text-rose-500">Sign Out</button></div>`;
                         
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), s => { transactions = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'dividends'), s => { dividends = s.docs.map(d => d.data()); render(); });
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'fees'), s => { adminFees = s.docs.map(d => d.data()); render(); });
+                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), s => { transactions = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
+                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'dividends'), s => { dividends = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
+                        onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'fees'), s => { adminFees = s.docs.map(d => ({...d.data(), id: d.id})); render(); });
                         onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'prices'), s => { s.docs.forEach(d => marketPrices[d.id] = d.data().price); render(); });
                     } else {
                         overlay.classList.remove('hidden');
