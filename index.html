@@ -27,11 +27,14 @@
         <div class="modal-overlay absolute inset-0" onclick="toggleSettings()"></div>
         <div class="card relative w-full max-w-lg p-8 shadow-2xl">
             <h3 class="text-sm font-black uppercase tracking-widest text-indigo-600 mb-2">Cloud Configuration</h3>
-            <p class="text-[11px] text-slate-500 mb-4 font-medium">Ensure your App ID matches your Firestore Security Rules exactly.</p>
+            <p class="text-[11px] text-slate-500 mb-4 font-medium">Paste the configuration from your Firebase Console. If you paste code, we will try to extract the JSON for you.</p>
             
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase">Firebase Config (JSON)</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase flex justify-between">
+                        <span>Firebase Config (JSON)</span>
+                        <button onclick="clearConfig()" class="text-rose-500 hover:underline">Clear</button>
+                    </label>
                     <textarea id="fb-config-input" rows="5" placeholder='{"apiKey": "...", ...}' class="w-full p-3 bg-slate-50 border rounded-xl text-[11px] font-mono"></textarea>
                 </div>
                 <div>
@@ -107,11 +110,36 @@
 
         window.toggleSettings = () => document.getElementById('settings-modal').classList.toggle('hidden');
 
+        window.clearConfig = () => {
+            document.getElementById('fb-config-input').value = '';
+        }
+
         window.saveSettings = () => {
-            const config = document.getElementById('fb-config-input').value.trim();
+            let input = document.getElementById('fb-config-input').value.trim();
             const newAppId = document.getElementById('fb-appid-input').value.trim() || DEFAULT_APP_ID;
-            if(!config) return;
-            localStorage.setItem('we_fb_config', config);
+
+            // SMART PARSER: Extract JSON if user pasted JS code
+            if (input.includes('{') && input.includes('}')) {
+                const startIndex = input.indexOf('{');
+                const endIndex = input.lastIndexOf('}') + 1;
+                const jsonCandidate = input.substring(startIndex, endIndex);
+                
+                // Final clean-up for JS object keys that aren't quoted (Firestore console style)
+                const cleanedJson = jsonCandidate
+                    .replace(/([a-zA-Z0-9]+):/g, '"$1":')
+                    .replace(/'/g, '"')
+                    .replace(/,\s*}/g, '}'); // Remove trailing commas
+                
+                try {
+                    JSON.parse(cleanedJson); // Test it
+                    input = cleanedJson;
+                } catch (e) {
+                    console.error("Smart parsing failed, using raw input", e);
+                }
+            }
+
+            if(!input) return;
+            localStorage.setItem('we_fb_config', input);
             localStorage.setItem('we_fb_appid', newAppId);
             window.location.reload();
         };
@@ -124,6 +152,9 @@
 
         async function init() {
             const configStr = localStorage.getItem('we_fb_config');
+            document.getElementById('fb-appid-input').value = appId;
+            document.getElementById('fb-config-input').value = configStr || '';
+
             if (!configStr) return;
 
             try {
@@ -134,14 +165,13 @@
 
                 document.getElementById('google-auth-section').classList.remove('hidden');
                 
-                // Sign in logic
                 document.getElementById('google-signin-btn').onclick = async () => {
                     const provider = new GoogleAuthProvider();
                     try {
                         await signInWithPopup(auth, provider);
                     } catch (e) {
-                        console.error("Popup failed, trying redirect:", e);
-                        await signInWithRedirect(auth, provider);
+                        console.error("Sign-in error:", e);
+                        showError("Sign-in failed. Check 'Authorized Domains' in Firebase console.");
                     }
                 };
 
@@ -162,10 +192,10 @@
                         signout.classList.toggle('hidden', u.isAnonymous);
                         
                         onSnapshot(collection(db, 'artifacts', appId, 'users', u.uid, 'transactions'), () => {
-                            console.log("Data sync verified.");
+                            console.log("Cloud synced.");
                         }, (err) => {
                             if(err.code === 'permission-denied') {
-                                text.innerText = "Permission Denied";
+                                text.innerText = "Check Rules";
                                 dot.className = "w-2 h-2 rounded-full bg-rose-500";
                             }
                         });
@@ -176,12 +206,9 @@
                         main.classList.add('hidden');
                     }
                 });
-
-                // Check for redirect result
-                getRedirectResult(auth).catch(e => showError(e.message));
-
             } catch (e) {
-                console.error("Initialization failed", e);
+                console.error("Init Error:", e);
+                document.getElementById('sync-text').innerText = "JSON Error";
             }
         }
 
