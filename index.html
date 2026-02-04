@@ -40,6 +40,7 @@
                 </div>
                 
                 <div id="google-auth-section" class="pt-4 border-t hidden">
+                    <div id="auth-error-msg" class="hidden mb-3 p-2 bg-rose-50 text-rose-600 text-[10px] font-bold rounded border border-rose-100"></div>
                     <button id="google-signin-btn" class="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 py-3 rounded-xl font-black text-xs hover:bg-slate-50 shadow-sm transition-all">
                         Sign in with Google
                     </button>
@@ -74,7 +75,7 @@
         </div>
 
         <div id="main-content" class="hidden">
-            <!-- Portfolio content goes here (Stats, Forms, Tables) -->
+            <!-- Portfolio content -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                 <div class="card p-6"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Portfolio Value</p><h2 id="total-val" class="text-2xl font-black">HK$0.00</h2></div>
                 <div class="card p-6 border-l-4 border-l-emerald-500"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Return</p><h2 id="total-return" class="text-2xl font-black text-emerald-600">HK$0.00</h2></div>
@@ -98,26 +99,33 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db, auth, user;
         const DEFAULT_APP_ID = "wealth-engine-pro-v3";
+        const appId = localStorage.getItem('we_fb_appid') || DEFAULT_APP_ID;
 
         window.toggleSettings = () => document.getElementById('settings-modal').classList.toggle('hidden');
 
         window.saveSettings = () => {
             const config = document.getElementById('fb-config-input').value.trim();
-            const appId = document.getElementById('fb-appid-input').value.trim() || DEFAULT_APP_ID;
+            const newAppId = document.getElementById('fb-appid-input').value.trim() || DEFAULT_APP_ID;
             if(!config) return;
             localStorage.setItem('we_fb_config', config);
-            localStorage.setItem('we_fb_appid', appId);
+            localStorage.setItem('we_fb_appid', newAppId);
             window.location.reload();
+        };
+
+        const showError = (msg) => {
+            const errDiv = document.getElementById('auth-error-msg');
+            errDiv.innerText = msg;
+            errDiv.classList.remove('hidden');
+            setTimeout(() => errDiv.classList.add('hidden'), 5000);
         };
 
         async function init() {
             const configStr = localStorage.getItem('we_fb_config');
-            const appId = localStorage.getItem('we_fb_appid') || DEFAULT_APP_ID;
             
             document.getElementById('fb-appid-input').value = appId;
             document.getElementById('fb-config-input').value = configStr || '';
@@ -128,13 +136,35 @@
             }
 
             try {
-                const app = initializeApp(JSON.parse(configStr));
+                const firebaseConfig = JSON.parse(configStr);
+                const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
                 document.getElementById('google-auth-section').classList.remove('hidden');
-                document.getElementById('google-signin-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
+                
+                // FIXED: Direct event listener for sign-in
+                document.getElementById('google-signin-btn').addEventListener('click', async () => {
+                    try {
+                        const provider = new GoogleAuthProvider();
+                        await signInWithPopup(auth, provider);
+                    } catch (err) {
+                        console.error("Sign-in error:", err);
+                        showError(err.message.includes('popup-closed') ? "Sign-in popup was closed." : "Failed to sign in.");
+                    }
+                });
+
                 document.getElementById('signout-btn').onclick = () => signOut(auth);
+
+                // Initial Auth logic following Rule 3
+                const authenticate = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
+                    } else {
+                        await signInAnonymously(auth).catch(e => console.warn("Anonymous auth failed, waiting for user action."));
+                    }
+                };
+                authenticate();
 
                 onAuthStateChanged(auth, u => {
                     user = u;
@@ -146,20 +176,21 @@
 
                     if (u) {
                         dot.className = "w-2 h-2 rounded-full bg-emerald-500";
-                        text.innerText = "Connected";
+                        text.innerText = u.isAnonymous ? "Guest Session" : "Connected";
                         gate.classList.add('hidden');
                         main.classList.remove('hidden');
-                        signout.classList.remove('hidden');
+                        signout.classList.toggle('hidden', u.isAnonymous);
                         
-                        // Setup Listeners using the verified AppID
+                        // Setup Listeners
                         const path = ['artifacts', appId, 'users', u.uid];
-                        onSnapshot(collection(db, ...path, 'transactions'), (s) => {
-                            console.log("Data sync active for AppID:", appId);
-                            // Process transactions...
+                        const unsub = onSnapshot(collection(db, ...path, 'transactions'), (s) => {
+                            console.log("Sync active for:", appId);
+                            // Layout update logic would go here
                         }, (err) => {
                             if(err.code === 'permission-denied') {
-                                text.innerText = "Permission Error";
+                                text.innerText = "Permission Denied";
                                 dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                                console.error("Permission error. Check AppID:", appId);
                             }
                         });
                     } else {
@@ -171,6 +202,7 @@
                     }
                 });
             } catch (e) {
+                console.error("Firebase init failed:", e);
                 document.getElementById('sync-text').innerText = "Config Error";
             }
         }
