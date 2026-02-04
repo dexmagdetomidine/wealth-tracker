@@ -3,157 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WealthEngine Pro | Portfolio</title>
+    <title>WealthEngine Pro | Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 1rem; }
         .tab-active { border-bottom: 2px solid #6366f1; color: #4338ca; font-weight: 800; }
-        input, select { border: 1px solid #cbd5e1; transition: all 0.2s; outline: none; }
-        input:focus, select:focus { border-color: #6366f1; ring: 2px; ring-color: #e0e7ff; }
-        .price-input { width: 90px; text-align: right; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-weight: 700; }
-        .progress-bg { height: 10px; background-color: #f1f5f9; border-radius: 6px; overflow: hidden; }
-        .progress-fill { height: 100%; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
         .hidden { display: none !important; }
         .modal-overlay { background-color: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); }
-        .overflow-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        input, select { border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 0.5rem; outline: none; transition: all 0.2s; }
+        input:focus { border-color: #6366f1; ring: 2px; ring-color: #e0e7ff; }
+        .positive { color: #059669; }
+        .negative { color: #dc2626; }
     </style>
 </head>
 <body class="min-h-screen pb-20">
 
-    <!-- Auth & AppID Config Modal -->
+    <!-- Config Modal -->
     <div id="settings-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
         <div class="modal-overlay absolute inset-0" onclick="toggleSettings()"></div>
         <div class="card relative w-full max-w-lg p-8 shadow-2xl">
             <h3 class="text-sm font-black uppercase tracking-widest text-indigo-600 mb-2">Cloud Configuration</h3>
-            <p class="text-[11px] text-slate-500 mb-4 font-medium">Paste the configuration from your Firebase Console. If you paste code, we will try to extract the JSON for you.</p>
-            
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase flex justify-between">
-                        <span>Firebase Config (JSON)</span>
-                        <button onclick="clearConfig()" class="text-rose-500 hover:underline">Clear</button>
-                    </label>
-                    <textarea id="fb-config-input" rows="5" placeholder='{"apiKey": "...", ...}' class="w-full p-3 bg-slate-50 border rounded-xl text-[11px] font-mono"></textarea>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Firebase Config (JSON)</label>
+                    <textarea id="fb-config-input" rows="4" class="w-full p-3 bg-slate-50 border rounded-xl text-[10px] font-mono"></textarea>
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase">App ID (Required for Permissions)</label>
-                    <input type="text" id="fb-appid-input" placeholder="wealth-engine-pro-v3" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold text-indigo-600">
+                    <label class="text-[10px] font-black text-slate-400 uppercase">App ID</label>
+                    <input type="text" id="fb-appid-input" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold">
                 </div>
-                
-                <div id="google-auth-section" class="pt-4 border-t hidden">
-                    <div id="auth-error-msg" class="hidden mb-3 p-2 bg-rose-50 text-rose-600 text-[10px] font-bold rounded border border-rose-100"></div>
-                    <div id="auth-success-msg" class="hidden mb-3 p-2 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded border border-emerald-100">Successfully Signed In!</div>
-                    
-                    <button id="google-signin-btn" class="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 py-3 rounded-xl font-black text-xs hover:bg-slate-50 shadow-sm transition-all">
-                        Sign in with Google
-                    </button>
-                    <button id="signout-btn" class="hidden w-full mt-2 text-[10px] text-slate-400 font-bold uppercase hover:text-rose-500">Sign Out</button>
+                <div id="auth-error-msg" class="hidden p-2 bg-rose-50 text-rose-600 text-[10px] font-bold rounded border border-rose-100"></div>
+                <div class="flex gap-2">
+                    <button id="google-signin-btn" class="flex-1 bg-white border border-slate-200 py-3 rounded-xl font-black text-xs hover:bg-slate-50">Google Sign In</button>
+                    <button id="signout-btn" class="hidden flex-1 bg-rose-50 text-rose-600 font-black py-3 rounded-xl text-xs">Sign Out</button>
                 </div>
-
-                <div class="flex gap-2 pt-2">
-                    <button onclick="saveSettings()" class="flex-1 bg-indigo-600 text-white font-black py-3 rounded-xl uppercase text-xs shadow-lg">Save & Connect</button>
-                    <button onclick="toggleSettings()" class="px-6 bg-slate-100 text-slate-500 font-black py-3 rounded-xl uppercase text-xs">Cancel</button>
-                </div>
+                <button onclick="saveSettings()" class="w-full bg-indigo-600 text-white font-black py-3 rounded-xl uppercase text-xs shadow-lg">Save & Refresh</button>
             </div>
         </div>
     </div>
 
-    <header class="bg-white border-b sticky top-0 z-50 shadow-sm">
+    <header class="bg-white border-b sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <h1 class="text-xl font-black tracking-tighter text-slate-800">WealthEngine</h1>
-            <div class="flex items-center gap-3">
-                <div id="auth-status" onclick="toggleSettings()" class="flex items-center gap-2 px-4 py-2 bg-slate-100 border rounded-xl text-[10px] font-black uppercase cursor-pointer">
-                    <span id="sync-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
-                    <span id="sync-text">Checking...</span>
-                </div>
+            <h1 class="text-xl font-black tracking-tighter text-indigo-600">WEALTHENGINE PRO</h1>
+            <div id="auth-status" onclick="toggleSettings()" class="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-[10px] font-black uppercase cursor-pointer">
+                <span id="sync-dot" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                <span id="sync-text">Checking...</span>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 py-8">
-        <div id="auth-gate-msg" class="card p-12 text-center">
-            <h2 class="text-lg font-black text-slate-800 mb-2">Access Locked</h2>
-            <p class="text-sm text-slate-500 mb-6">Please configure your Firebase credentials and Sign In to view your portfolio.</p>
-            <button onclick="toggleSettings()" class="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black text-xs uppercase shadow-lg">Setup Connection</button>
+    <main id="app-container" class="max-w-7xl mx-auto px-4 py-8 hidden">
+        <!-- Dashboard Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="card p-6">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Value (HKD)</p>
+                <h2 id="total-val" class="text-2xl font-black">HK$0.00</h2>
+            </div>
+            <div class="card p-6">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Unrealized P/L</p>
+                <h2 id="total-pl" class="text-2xl font-black">HK$0.00</h2>
+                <p id="total-pl-pct" class="text-[10px] font-bold mt-1">0.00%</p>
+            </div>
+            <div class="card p-6">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Dividends</p>
+                <h2 id="total-div" class="text-2xl font-black text-emerald-600">HK$0.00</h2>
+            </div>
+            <div class="card p-6">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Fees</p>
+                <h2 id="total-fees" class="text-2xl font-black text-rose-500">HK$0.00</h2>
+            </div>
         </div>
 
-        <div id="main-content" class="hidden">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div class="card p-6"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Portfolio Value</p><h2 id="total-val" class="text-2xl font-black">HK$0.00</h2></div>
-                <div class="card p-6 border-l-4 border-l-emerald-500"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Return</p><h2 id="total-return" class="text-2xl font-black text-emerald-600">HK$0.00</h2></div>
-                <div class="card p-6"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Income</p><h2 id="total-income" class="text-2xl font-black text-blue-600">HK$0.00</h2></div>
-                <div class="card p-6"><p class="text-[10px] font-black text-slate-400 uppercase mb-1">Fees</p><h2 id="total-fees" class="text-2xl font-black text-rose-500">HK$0.00</h2></div>
+        <!-- Action Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Holdings -->
+                <div class="card overflow-hidden">
+                    <div class="px-6 py-4 border-b bg-slate-50 flex justify-between items-center">
+                        <h3 class="text-xs font-black uppercase text-slate-500">Portfolio Holdings</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="bg-slate-50 border-b text-[10px] font-black uppercase text-slate-400">
+                                    <th class="px-6 py-3">Asset</th>
+                                    <th class="px-6 py-3">Holdings</th>
+                                    <th class="px-6 py-3">Avg Cost</th>
+                                    <th class="px-6 py-3">Mkt Price</th>
+                                    <th class="px-6 py-3">Market Value</th>
+                                    <th class="px-6 py-3 text-right">P/L</th>
+                                </tr>
+                            </thead>
+                            <tbody id="holdings-body">
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            
-            <div class="card p-6 mb-8">
-                <h3 class="text-xs font-black uppercase text-slate-400 mb-4">Quick Trade</h3>
-                <form id="tx-form" class="grid grid-cols-2 md:grid-cols-6 gap-4">
-                    <input type="date" id="t-date" class="p-2 text-xs font-bold bg-slate-50 border rounded-lg">
-                    <input type="text" id="t-symbol" placeholder="SYMBOL" class="p-2 text-xs font-bold bg-slate-50 border rounded-lg uppercase">
-                    <select id="t-action" class="p-2 text-xs font-bold bg-slate-50 border rounded-lg"><option value="BUY">BUY</option><option value="SELL">SELL</option></select>
-                    <input type="number" id="t-qty" placeholder="Units" class="p-2 text-xs font-bold bg-slate-50 border rounded-lg">
-                    <input type="number" id="t-price" step="any" placeholder="Price" class="p-2 text-xs font-bold bg-slate-50 border rounded-lg">
-                    <button type="submit" class="bg-indigo-600 text-white font-black rounded-lg text-[10px] uppercase">Add</button>
-                </form>
+
+            <!-- Sidebar -->
+            <div class="space-y-6">
+                <!-- Transaction Form -->
+                <div class="card p-6">
+                    <h3 class="text-xs font-black uppercase text-indigo-600 mb-4">Add Transaction</h3>
+                    <form id="tx-form" class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="t-date" required class="text-xs font-bold">
+                            <select id="t-action" class="text-xs font-bold">
+                                <option value="BUY">BUY</option>
+                                <option value="SELL">SELL</option>
+                            </select>
+                        </div>
+                        <input type="text" id="t-symbol" placeholder="Symbol (e.g. 0700.HK)" required class="w-full text-xs font-bold uppercase">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" id="t-qty" step="any" placeholder="Units" required class="text-xs font-bold">
+                            <input type="number" id="t-price" step="any" placeholder="Price" required class="text-xs font-bold">
+                        </div>
+                        <button type="submit" class="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-wider">Record Trade</button>
+                    </form>
+                </div>
+
+                <!-- Price Update -->
+                <div class="card p-6">
+                    <h3 class="text-xs font-black uppercase text-slate-400 mb-4">Market Price Entry</h3>
+                    <form id="price-form" class="space-y-3">
+                        <div class="flex gap-2">
+                            <input type="text" id="p-symbol" placeholder="Symbol" required class="flex-1 text-xs font-bold uppercase">
+                            <input type="number" id="p-price" step="any" placeholder="Current Price" required class="flex-1 text-xs font-bold">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-50 text-indigo-600 border border-indigo-100 py-2 rounded-lg font-black text-[10px] uppercase">Update Price</button>
+                    </form>
+                </div>
             </div>
         </div>
     </main>
 
+    <div id="auth-gate" class="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <h2 class="text-2xl font-black text-slate-800 mb-2">Welcome to WealthEngine</h2>
+        <p class="text-sm text-slate-500 mb-8 max-w-xs">Your personal encrypted financial command center.</p>
+        <button onclick="toggleSettings()" class="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black text-xs uppercase shadow-lg">Connect to Cloud</button>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        let db, auth;
-        const DEFAULT_APP_ID = "wealth-engine-pro-v3";
-        const appId = localStorage.getItem('we_fb_appid') || DEFAULT_APP_ID;
+        let db, auth, user;
+        let data = { transactions: [], prices: {} };
 
+        const appId = localStorage.getItem('we_fb_appid') || 'wealth-engine-pro-v3';
         window.toggleSettings = () => document.getElementById('settings-modal').classList.toggle('hidden');
 
-        window.clearConfig = () => {
-            document.getElementById('fb-config-input').value = '';
-        }
-
         window.saveSettings = () => {
-            let input = document.getElementById('fb-config-input').value.trim();
-            const newAppId = document.getElementById('fb-appid-input').value.trim() || DEFAULT_APP_ID;
-
-            if (input.includes('{') && input.includes('}')) {
-                let cleaned = input.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-                const startIndex = cleaned.indexOf('{');
-                const endIndex = cleaned.lastIndexOf('}') + 1;
-                cleaned = cleaned.substring(startIndex, endIndex);
-                cleaned = cleaned
-                    .replace(/([a-zA-Z0-9]+):/g, '"$1":') 
-                    .replace(/'/g, '"')                  
-                    .replace(/,\s*}/g, '}')               
-                    .replace(/,\s*\]/g, ']');             
-                try {
-                    JSON.parse(cleaned);
-                    input = cleaned;
-                } catch (e) { console.warn("Parse failed", e); }
-            }
-
-            if(!input) return;
-            localStorage.setItem('we_fb_config', input);
-            localStorage.setItem('we_fb_appid', newAppId);
+            const config = document.getElementById('fb-config-input').value.trim();
+            const aid = document.getElementById('fb-appid-input').value.trim();
+            if(config) localStorage.setItem('we_fb_config', config);
+            if(aid) localStorage.setItem('we_fb_appid', aid);
             window.location.reload();
         };
 
-        const showError = (msg) => {
-            const errDiv = document.getElementById('auth-error-msg');
-            errDiv.innerText = msg;
-            errDiv.classList.remove('hidden');
-        };
-
-        async function init() {
+        const init = async () => {
             const configStr = localStorage.getItem('we_fb_config');
             document.getElementById('fb-appid-input').value = appId;
-            document.getElementById('fb-config-input').value = configStr || '';
-
-            if (!configStr) return;
+            if(!configStr) return;
 
             try {
                 const config = JSON.parse(configStr);
@@ -161,63 +177,127 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                document.getElementById('google-auth-section').classList.remove('hidden');
-                
-                document.getElementById('google-signin-btn').onclick = async () => {
-                    const provider = new GoogleAuthProvider();
-                    try {
-                        await signInWithPopup(auth, provider);
-                        document.getElementById('auth-success-msg').classList.remove('hidden');
-                        setTimeout(() => {
-                            document.getElementById('settings-modal').classList.add('hidden');
-                            document.getElementById('auth-success-msg').classList.add('hidden');
-                        }, 1500);
-                    } catch (e) {
-                        console.error("Sign-in error:", e);
-                        showError("Sign-in failed. Please check your browser popup settings and Authorized Domains.");
-                    }
-                };
-
-                document.getElementById('signout-btn').onclick = () => signOut(auth);
-
                 onAuthStateChanged(auth, u => {
+                    user = u;
                     const dot = document.getElementById('sync-dot');
                     const text = document.getElementById('sync-text');
-                    const gate = document.getElementById('auth-gate-msg');
-                    const main = document.getElementById('main-content');
-                    const signout = document.getElementById('signout-btn');
-                    const googleBtn = document.getElementById('google-signin-btn');
+                    const gate = document.getElementById('auth-gate');
+                    const container = document.getElementById('app-container');
 
-                    if (u) {
+                    if(u) {
                         dot.className = "w-2 h-2 rounded-full bg-emerald-500";
                         text.innerText = u.displayName || "Connected";
                         gate.classList.add('hidden');
-                        main.classList.remove('hidden');
-                        signout.classList.remove('hidden');
-                        googleBtn.classList.add('hidden');
-                        
-                        onSnapshot(collection(db, 'artifacts', appId, 'users', u.uid, 'transactions'), () => {
-                            console.log("Cloud synced.");
-                        }, (err) => {
-                            if(err.code === 'permission-denied') {
-                                text.innerText = "Permission Denied";
-                                dot.className = "w-2 h-2 rounded-full bg-rose-500";
-                                showError("Firestore rules rejected access. Check App ID.");
-                            }
-                        });
+                        container.classList.remove('hidden');
+                        document.getElementById('signout-btn').classList.remove('hidden');
+                        document.getElementById('google-signin-btn').classList.add('hidden');
+                        setupListeners();
                     } else {
                         dot.className = "w-2 h-2 rounded-full bg-amber-400";
                         text.innerText = "Signed Out";
                         gate.classList.remove('hidden');
-                        main.classList.add('hidden');
-                        signout.classList.add('hidden');
-                        googleBtn.classList.remove('hidden');
+                        container.classList.add('hidden');
+                        document.getElementById('signout-btn').classList.add('hidden');
+                        document.getElementById('google-signin-btn').classList.remove('hidden');
                     }
                 });
-            } catch (e) {
-                console.error("Init Error:", e);
-                document.getElementById('sync-text').innerText = "JSON Error";
-            }
+
+                document.getElementById('google-signin-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
+                document.getElementById('signout-btn').onclick = () => signOut(auth);
+
+            } catch(e) { console.error("Config Error", e); }
+        };
+
+        function setupListeners() {
+            // Listen to Transactions
+            onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), snap => {
+                data.transactions = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                calculate();
+            });
+
+            // Listen to Prices
+            onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'prices'), snap => {
+                snap.docs.forEach(d => data.prices[d.id] = d.data().price);
+                calculate();
+            });
+        }
+
+        // Add Transaction
+        document.getElementById('tx-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), {
+                    date: document.getElementById('t-date').value,
+                    symbol: document.getElementById('t-symbol').value.toUpperCase(),
+                    action: document.getElementById('t-action').value,
+                    qty: parseFloat(document.getElementById('t-qty').value),
+                    price: parseFloat(document.getElementById('t-price').value),
+                    timestamp: serverTimestamp()
+                });
+                e.target.reset();
+            } catch(err) { alert("Save failed: " + err.message); }
+            btn.disabled = false;
+        };
+
+        // Update Price
+        document.getElementById('price-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const symbol = document.getElementById('p-symbol').value.toUpperCase();
+            const price = parseFloat(document.getElementById('p-price').value);
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'prices', symbol), { price, updated: serverTimestamp() });
+                e.target.reset();
+            } catch(err) { alert("Update failed: " + err.message); }
+        };
+
+        function calculate() {
+            const assets = {};
+            data.transactions.forEach(t => {
+                if(!assets[t.symbol]) assets[t.symbol] = { qty: 0, cost: 0 };
+                const side = t.action === 'BUY' ? 1 : -1;
+                assets[t.symbol].qty += (t.qty * side);
+                if(t.action === 'BUY') assets[t.symbol].cost += (t.qty * t.price);
+            });
+
+            let totalVal = 0, totalGain = 0, totalCost = 0;
+            const body = document.getElementById('holdings-body');
+            body.innerHTML = '';
+
+            Object.keys(assets).forEach(sym => {
+                const item = assets[sym];
+                if(item.qty <= 0) return;
+                
+                const mktPrice = data.prices[sym] || 0;
+                const mktVal = item.qty * mktPrice;
+                const avgCost = item.cost / item.qty; // Simple average cost logic
+                const pl = mktVal - (item.qty * avgCost);
+                const plPct = avgCost > 0 ? (pl / (item.qty * avgCost)) * 100 : 0;
+
+                totalVal += mktVal;
+                totalCost += (item.qty * avgCost);
+
+                body.innerHTML += `
+                    <tr class="border-b hover:bg-slate-50">
+                        <td class="px-6 py-4 font-bold">${sym}</td>
+                        <td class="px-6 py-4">${item.qty.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-slate-500">${avgCost.toFixed(2)}</td>
+                        <td class="px-6 py-4 font-semibold">${mktPrice.toFixed(2)}</td>
+                        <td class="px-6 py-4 font-bold">${mktVal.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-right font-black ${pl >= 0 ? 'text-emerald-600' : 'text-rose-600'}">
+                            ${pl >= 0 ? '+' : ''}${pl.toLocaleString()}<br/>
+                            <span class="text-[9px] font-bold">${plPct.toFixed(2)}%</span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('total-val').innerText = 'HK$' + totalVal.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('total-pl').innerText = 'HK$' + (totalVal - totalCost).toLocaleString(undefined, {minimumFractionDigits: 2});
+            const totalPct = totalCost > 0 ? ((totalVal - totalCost) / totalCost) * 100 : 0;
+            document.getElementById('total-pl-pct').innerText = totalPct.toFixed(2) + '%';
+            document.getElementById('total-pl-pct').className = `text-[10px] font-bold mt-1 ${totalPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
         }
 
         init();
