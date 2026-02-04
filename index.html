@@ -147,30 +147,25 @@
             
             <!-- 3. Trade Execution Form -->
             <div class="lg:col-span-6 card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-400">Trade Execution</h3>
-                    <button type="button" id="tx-cancel-btn" class="hidden text-[10px] font-bold text-rose-500 uppercase">Cancel Edit</button>
-                </div>
+                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Trade Execution</h3>
                 <form id="tx-form" class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <input type="hidden" id="edit-id">
                     <div class="col-span-2 space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="trade-date" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" required></div>
                     <div class="col-span-2 space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Asset Class</label><select id="assetType" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"><option value="STOCK">Equity / ETF</option><option value="BOND">Bond / FI</option></select></div>
                     <div class="col-span-2 space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Ticker / Symbol</label><input type="text" id="symbol" placeholder="0700.HK / AAPL" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold uppercase" required></div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Action</label><select id="action" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></div>
-                    <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Currency</label><select id="currency" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"><option value="HKD">HKD</option><option value="USD">USD</option></select></div>
-                    <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Qty</label><input type="number" id="shares" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" required></div>
+                    <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Ccy</label><select id="currency" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"><option value="HKD">HKD</option><option value="USD">USD</option></select></div>
+                    <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Quantity</label><input type="number" id="shares" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" required></div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Price</label><input type="number" id="price" step="any" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" required></div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Fee</label><input type="number" id="fee" step="any" value="0" class="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"></div>
                     <button type="submit" id="save-tx-btn" class="col-span-2 md:col-span-1 mt-5 bg-indigo-600 text-white font-black py-2.5 rounded-xl uppercase text-[10px] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed">Sign In First</button>
+                    <button type="button" id="tx-cancel-btn" class="hidden col-span-2 md:col-span-1 mt-5 bg-slate-100 text-slate-500 font-black py-2.5 rounded-xl uppercase text-[10px]">Cancel</button>
                 </form>
             </div>
             
             <!-- 4. Income Log -->
             <div class="lg:col-span-3 card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-600">Income Log</h3>
-                    <button type="button" id="div-cancel-btn" class="hidden text-[10px] font-bold text-rose-500 uppercase">Cancel</button>
-                </div>
+                <h3 class="text-xs font-black uppercase tracking-widest text-blue-600 mb-4">Income Log</h3>
                 <form id="div-form" class="space-y-3">
                     <input type="hidden" id="div-edit-id">
                     <div class="grid grid-cols-2 gap-2">
@@ -183,15 +178,13 @@
                         <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="div-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                     </div>
                     <button type="submit" id="log-income-btn" class="w-full bg-blue-600 text-white font-black py-2.5 rounded-xl uppercase text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">Sign In First</button>
+                    <button type="button" id="div-cancel-btn" class="hidden w-full bg-slate-100 text-slate-500 font-black py-2.5 rounded-xl uppercase text-[10px] mt-2">Cancel</button>
                 </form>
             </div>
 
             <!-- 5. Fees Section -->
             <div class="lg:col-span-3 card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-rose-500">Other Fees</h3>
-                    <button type="button" id="fee-cancel-btn" class="hidden text-[10px] font-bold text-rose-500 uppercase">Cancel</button>
-                </div>
+                <h3 class="text-xs font-black uppercase tracking-widest text-rose-500 mb-4">Other Fees</h3>
                 <form id="fee-form" class="space-y-3">
                     <input type="hidden" id="fee-edit-id">
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Description</label><input type="text" id="fee-desc" placeholder="e.g. Custody Fee" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
@@ -201,6 +194,7 @@
                     </div>
                     <div class="space-y-1"><label class="text-[10px] font-black text-slate-400 uppercase">Date</label><input type="date" id="fee-date" class="w-full p-2 bg-slate-50 border rounded-lg text-xs font-bold" required></div>
                     <button type="submit" id="log-fees-btn" class="w-full bg-rose-500 text-white font-black py-2.5 rounded-xl uppercase text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">Sign In First</button>
+                    <button type="button" id="fee-cancel-btn" class="hidden w-full bg-slate-100 text-slate-500 font-black py-2.5 rounded-xl uppercase text-[10px] mt-2">Cancel</button>
                 </form>
             </div>
         </div>
@@ -224,7 +218,9 @@
                             <th class="px-6 py-4 text-right">P/L (%)</th>
                         </tr>
                     </thead>
-                    <tbody id="portfolio-body" class="divide-y divide-slate-100 font-medium text-sm"></tbody>
+                    <tbody id="portfolio-body" class="divide-y divide-slate-100 font-medium text-sm">
+                        <!-- Dynamic -->
+                    </tbody>
                 </table>
             </div>
             <div id="history-view" class="hidden overflow-container">
@@ -238,7 +234,9 @@
                             <th class="px-6 py-4 text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="history-body" class="divide-y divide-slate-100 text-xs font-medium"></tbody>
+                    <tbody id="history-body" class="divide-y divide-slate-100 text-xs font-medium">
+                        <!-- Dynamic -->
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -249,6 +247,7 @@
         import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // APP STATE
         let transactions = [], dividends = [], adminFees = [], marketPrices = {};
         let usdToHkd = 7.8210; 
         let db, auth, user;
@@ -286,7 +285,7 @@
                 JSON.parse(config);
                 localStorage.setItem('we_fb_config', config);
                 window.location.reload();
-            } catch (e) { alert("Invalid JSON"); }
+            } catch (e) { alert("Invalid JSON format."); }
         };
 
         window.setView = (v) => {
@@ -296,16 +295,19 @@
             document.getElementById('tab-history').classList.toggle('tab-active', v === 'history');
         };
 
+        // RENDER LOGIC
         function render() {
             const holdings = {};
-            let tradingFeesHKD = 0, incomeTotalHKD = 0, totalRealizedHKD = 0;
+            let totalTradingFeesHKD = 0, incomeTotalHKD = 0, totalRealizedHKD = 0;
             let totalAdminFeesHKD = adminFees.reduce((acc, f) => acc + (f.currency === 'USD' ? f.amount * usdToHkd : f.amount), 0);
 
             transactions.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(t => {
                 const feeHKD = (t.currency === 'USD' ? t.fee * usdToHkd : t.fee);
-                tradingFeesHKD += feeHKD;
+                totalTradingFeesHKD += feeHKD;
 
-                if (!holdings[t.symbol]) holdings[t.symbol] = { symbol: t.symbol, type: t.assetType, currency: t.currency, shares: 0, costHKD: 0 };
+                if (!holdings[t.symbol]) {
+                    holdings[t.symbol] = { symbol: t.symbol, type: t.assetType, currency: t.currency, shares: 0, costHKD: 0 };
+                }
                 
                 const factor = (t.assetType === 'BOND') ? 0.01 : 1.0;
                 const txCcyFactor = t.currency === 'USD' ? usdToHkd : 1.0;
@@ -325,7 +327,7 @@
 
             dividends.forEach(d => incomeTotalHKD += (d.currency === 'USD' ? d.amount * usdToHkd : d.amount));
 
-            // Portfolio Table
+            // Populate Portfolio Table
             const pBody = document.getElementById('portfolio-body');
             let totalMktHKD = 0, totalCostHKD = 0, hkVal = 0, usVal = 0, stkVal = 0, bndVal = 0;
             pBody.innerHTML = '';
@@ -363,7 +365,7 @@
             document.getElementById('total-val-hkd').innerText = fmt(totalMktHKD);
             document.getElementById('unrealized-gain').innerText = `Unrealized: ${fmt(totalMktHKD - totalCostHKD)}`;
             document.getElementById('total-div-hkd').innerText = fmt(incomeTotalHKD);
-            document.getElementById('total-fees-display').innerText = fmt(tradingFeesHKD + totalAdminFeesHKD);
+            document.getElementById('total-fees-display').innerText = fmt(totalTradingFeesHKD + totalAdminFeesHKD);
             document.getElementById('grand-total-profit').innerText = fmt((totalMktHKD - totalCostHKD) + totalRealizedHKD + incomeTotalHKD - totalAdminFeesHKD);
 
             // Exposures
@@ -517,7 +519,12 @@
 
         async function boot() {
             const configStr = localStorage.getItem('we_fb_config');
-            if (!configStr) return toggleSettings();
+            if (!configStr) {
+                document.getElementById('sync-text').innerText = "Setup Needed";
+                toggleSettings();
+                return;
+            }
+
             try {
                 const config = JSON.parse(configStr);
                 const app = initializeApp(config);
