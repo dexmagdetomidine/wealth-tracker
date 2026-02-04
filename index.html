@@ -44,6 +44,8 @@
                 
                 <div id="google-auth-section" class="pt-4 border-t hidden">
                     <div id="auth-error-msg" class="hidden mb-3 p-2 bg-rose-50 text-rose-600 text-[10px] font-bold rounded border border-rose-100"></div>
+                    <div id="auth-success-msg" class="hidden mb-3 p-2 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded border border-emerald-100">Successfully Signed In!</div>
+                    
                     <button id="google-signin-btn" class="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 py-3 rounded-xl font-black text-xs hover:bg-slate-50 shadow-sm transition-all">
                         Sign in with Google
                     </button>
@@ -101,7 +103,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInWithRedirect, getRedirectResult, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         let db, auth;
@@ -118,24 +120,20 @@
             let input = document.getElementById('fb-config-input').value.trim();
             const newAppId = document.getElementById('fb-appid-input').value.trim() || DEFAULT_APP_ID;
 
-            // SMART PARSER: Extract JSON if user pasted JS code
             if (input.includes('{') && input.includes('}')) {
-                const startIndex = input.indexOf('{');
-                const endIndex = input.lastIndexOf('}') + 1;
-                const jsonCandidate = input.substring(startIndex, endIndex);
-                
-                // Final clean-up for JS object keys that aren't quoted (Firestore console style)
-                const cleanedJson = jsonCandidate
-                    .replace(/([a-zA-Z0-9]+):/g, '"$1":')
-                    .replace(/'/g, '"')
-                    .replace(/,\s*}/g, '}'); // Remove trailing commas
-                
+                let cleaned = input.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+                const startIndex = cleaned.indexOf('{');
+                const endIndex = cleaned.lastIndexOf('}') + 1;
+                cleaned = cleaned.substring(startIndex, endIndex);
+                cleaned = cleaned
+                    .replace(/([a-zA-Z0-9]+):/g, '"$1":') 
+                    .replace(/'/g, '"')                  
+                    .replace(/,\s*}/g, '}')               
+                    .replace(/,\s*\]/g, ']');             
                 try {
-                    JSON.parse(cleanedJson); // Test it
-                    input = cleanedJson;
-                } catch (e) {
-                    console.error("Smart parsing failed, using raw input", e);
-                }
+                    JSON.parse(cleaned);
+                    input = cleaned;
+                } catch (e) { console.warn("Parse failed", e); }
             }
 
             if(!input) return;
@@ -169,9 +167,14 @@
                     const provider = new GoogleAuthProvider();
                     try {
                         await signInWithPopup(auth, provider);
+                        document.getElementById('auth-success-msg').classList.remove('hidden');
+                        setTimeout(() => {
+                            document.getElementById('settings-modal').classList.add('hidden');
+                            document.getElementById('auth-success-msg').classList.add('hidden');
+                        }, 1500);
                     } catch (e) {
                         console.error("Sign-in error:", e);
-                        showError("Sign-in failed. Check 'Authorized Domains' in Firebase console.");
+                        showError("Sign-in failed. Please check your browser popup settings and Authorized Domains.");
                     }
                 };
 
@@ -183,20 +186,23 @@
                     const gate = document.getElementById('auth-gate-msg');
                     const main = document.getElementById('main-content');
                     const signout = document.getElementById('signout-btn');
+                    const googleBtn = document.getElementById('google-signin-btn');
 
                     if (u) {
                         dot.className = "w-2 h-2 rounded-full bg-emerald-500";
                         text.innerText = u.displayName || "Connected";
                         gate.classList.add('hidden');
                         main.classList.remove('hidden');
-                        signout.classList.toggle('hidden', u.isAnonymous);
+                        signout.classList.remove('hidden');
+                        googleBtn.classList.add('hidden');
                         
                         onSnapshot(collection(db, 'artifacts', appId, 'users', u.uid, 'transactions'), () => {
                             console.log("Cloud synced.");
                         }, (err) => {
                             if(err.code === 'permission-denied') {
-                                text.innerText = "Check Rules";
+                                text.innerText = "Permission Denied";
                                 dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                                showError("Firestore rules rejected access. Check App ID.");
                             }
                         });
                     } else {
@@ -204,6 +210,8 @@
                         text.innerText = "Signed Out";
                         gate.classList.remove('hidden');
                         main.classList.add('hidden');
+                        signout.classList.add('hidden');
+                        googleBtn.classList.remove('hidden');
                     }
                 });
             } catch (e) {
